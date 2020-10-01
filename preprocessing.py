@@ -3,7 +3,14 @@ import torch
 import os
 import future
 import numpy
-import zipfile
+
+"""
+Start by downloading these manually:
+http://www.image-net.org/challenges/LSVRC/2012/dd31405981ef5f776aa17412e1f0c112/ILSVRC2012_devkit_t12.tar.gz
+http://www.image-net.org/challenges/LSVRC/2012/dd31405981ef5f776aa17412e1f0c112/ILSVRC2012_img_train.tar
+http://www.image-net.org/challenges/LSVRC/2012/dd31405981ef5f776aa17412e1f0c112/ILSVRC2012_img_val.tar
+
+"""
 
 
 class Dataloader():
@@ -25,26 +32,16 @@ class Dataloader():
             data_loader_cifar10 = torch.utils.data.DataLoader(
                 cifar10, batch_size=4, shuffle=True)
         else:
-            print("CIFAR10 already done.\n")
+            print("CIFAR10 done.\n")
 
-        if len(os.listdir(self.path2ImageNetZip)) <= 3:
-            print("Unzips ImageNet manually...")
-            pathNames = ["/Imagenet32_val_npz.zip",
-                         "/Imagenet32_train_npz.zip"]
-            for pathName in pathNames:
-                with zipfile.ZipFile(self.path2ImageNetZip + pathName, 'r') as zip_ref:
-                    zip_ref.extractall(self.path2ImageNetZip)
-        else:
-            print("Files already unzipped.")
-
-        if not os.path.isfile(self.path2data + "/ImageNet.tar.gz"):
+        if not os.path.isfile(self.path2data + "/ILSVRC2012_img_val.tar"):
             print("Preparing ImageNet\n")
             ImageNet = torchvision.datasets.ImageNet(
                 root=self.path2data)
             data_loader_ImageNet = torch.utils.data.DataLoader(
                 ImageNet, batch_size=4, shuffle=True)
         else:
-            print("ImageNet already done.")
+            print("ImageNet done.")
 
         return cifar10, data_loader_cifar10, ImageNet, data_loader_ImageNet
 
