@@ -2,7 +2,8 @@ import torchvision
 import torch
 import os
 import future
-import numpy
+import numpy as np
+import matplotlib.pyplot as plt
 
 """
 Start by downloading these manually:
@@ -17,35 +18,60 @@ class Dataloader():
     def __init__(self):
         self.path2root = os.getcwd()
         self.path2data = os.getcwd() + "/data"
-        self.path2ImageNetZip = os.getcwd() + "/ImageNet_zip"
-        self.path2ImageNetRoot = "/opt/anaconda3/envs/ADL/lib/python3.7/site-packages/torchvision/datasets"
 
-    def load_data(self):
+    def load_data(self, batchSizeIMGNET=4, batchSizeCIFAR=4):
 
         if not os.path.isdir(self.path2data):
             os.mkdir(self.path2data)
 
+        transform = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
+            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0, 0, 0), (1, 1, 1))])
+
         if not os.path.isfile(self.path2data + "/cifar-10-python.tar.gz"):
             print("Preparing CIFAR10\n")
-            cifar10 = torchvision.datasets.CIFAR10(
-                root=self.path2data, download=True)
-            data_loader_cifar10 = torch.utils.data.DataLoader(
-                cifar10, batch_size=4, shuffle=True)
-        else:
-            print("CIFAR10 done.\n")
+            traincifar10 = torchvision.datasets.CIFAR10(
+                root=self.path2data, train=True, download=True, transform=transform)
+            trainloader_cifar10 = torch.utils.data.DataLoader(
+                traincifar10, batch_size=batchSizeCIFAR, shuffle=True)
 
-        if not os.path.isfile(self.path2data + "/ILSVRC2012_img_val.tar"):
-            print("Preparing ImageNet\n")
-            ImageNet = torchvision.datasets.ImageNet(
-                root=self.path2data)
-            data_loader_ImageNet = torch.utils.data.DataLoader(
-                ImageNet, batch_size=4, shuffle=True)
-        else:
-            print("ImageNet done.")
+            testcifar10 = torchvision.datasets.CIFAR10(
+                root=self.path2data, train=False, download=True, transform=transform)
+            testloader_cifar10 = torch.utils.data.DataLoader(
+                testcifar10, batch_size=batchSizeCIFAR, shuffle=False)
+        return trainloader_cifar10, testloader_cifar10
 
-        return cifar10, data_loader_cifar10, ImageNet, data_loader_ImageNet
+        # if not os.path.isfile(self.path2data + "/ILSVRC2012_img_val.tar"):
+        #     print("Preparing ImageNet\n")
+        #     trainImageNet = torchvision.datasets.ImageNet(
+        #         root=self.path2data, train=True, transform=transform)
+        #     trainloader_ImageNet = torch.utils.data.DataLoader(
+        #         trainImageNet, batch_size=batchSizeIMGNET, shuffle=True)
+
+        #     testImageNet = torchvision.datasets.ImageNet(
+        #         root=self.path2data, train=False, transform=transform)
+        #     testloader_ImageNet = torch.utils.data.DataLoader(
+        #         testImageNet, batch_size=batchSizeIMGNET, shuffle=False)
+        # else:
+        #     print("ImageNet done.")
+
+        # return trainloader_cifar10, testloader_cifar10, trainloader_ImageNet, testloader_ImageNet
+
+
+def imshow(img):
+    img = img / 2 + 0.5
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.show()
 
 
 if __name__ == "__main__":
     DL = Dataloader()
-    cifar10, data_loader_cifar10, ImageNet, data_loader_ImageNet = DL.load_data()
+    train, test = DL.load_data()
+
+    dataiter = iter(train)
+    images, labels = dataiter.next()
+    classes = ('plane', 'car', 'bird', 'cat',
+               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+    imshow(torchvision.utils.make_grid(images))
+    print(' '.join('%5s' % classes[labels[j]] for j in range(4)))
