@@ -33,35 +33,38 @@ class ActNorm(nn.Module):
     # we want to start off with zero mean and unit variance on the initial minibatch
     def initialize(self, x):
         with torch.no_grad():
-            shape = x.shape()
+            shape=x.shape()
             if len(shape) == 4:
-                mean= dim_mean(x.clone(), dims=[0, 2,3], keepDims = True)
-                variance = dim_mean((x.clone() + bias) ** 2, dims =[0,2,3], keepDims=True)
-                std_dev = (self.scale_factor / (variance.sqrt() + 1e-6))
+                mean=dim_mean(x.clone(), dims=[0, 2, 3], keepDims=True)
+                variance=dim_mean((x.clone() + bias) ** 2,
+                                  dims=[0, 2, 3], keepDims=True)
+                std_dev=(self.scale_factor / (variance.sqrt() + 1e-6))
 
             elif len(shape) == 2:
-                mean = dim_mean(x.clone(), dims=[0], keepDims = True)
-                variance = dim_mean((x.clone() + bias) ** 2, dims=[0], keepDims=True)
-                std_dev = (self.scale_factor / (variance.sqrt() + 1e-6))
-                #reshape bias and scale tensors
-                self.bias = nn.Parameter(torch.zeros(1, self.in_channels))
-                self.scale = nn.Parameter(torch.zeros(1, self.in_channels))
+                mean=dim_mean(x.clone(), dims=[0], keepDims=True)
+                variance=dim_mean((x.clone() + bias) ** 2,
+                                  dims=[0], keepDims=True)
+                std_dev=(self.scale_factor / (variance.sqrt() + 1e-6))
+                # reshape bias and scale tensors
+                self.bias=nn.Parameter(torch.zeros(1, self.in_channels))
+                self.scale=nn.Parameter(torch.zeros(1, self.in_channels))
 
             self.bias.data.copy_(-mean.data)
             # addition to avoid divsion by zero
             self.scale.data.copy_(std_dev.data)
-            
+
             self.initialized += 1
 
     def forward(self, x):
-        shape = x.shape()
+        shape=x.shape()
         if len(shape) == 2:
-            height, width = shape
+            height, width=shape
         elif len(shape) == 4:
-            height = shape[2]
-            width = shape[3]
+            height=shape[2]
+            width=shape[3]
         else:
-            raise Exception(f"Incorrect amount of dimensions in input data: should be 2 or 4, is {len(shape)}")
+            raise Exception(
+                f"Incorrect amount of dimensions in input data: should be 2 or 4, is {len(shape)}")
 
         # initialize on first item in buffer
         if self.initialized.item() == 0:
@@ -72,7 +75,8 @@ class ActNorm(nn.Module):
         log_det=height * width * torch.sum(log_abs)
 
         if self.logdet:
-            return self.scale * x + self.bias, log_det #the original does this in separate helper functions, we don't need that IMO
+            # the original does this in separate helper functions, we don't need that IMO
+            return self.scale * x + self.bias, log_det
         else:
             return self.scale * x + self.bias
 
@@ -93,5 +97,5 @@ def dim_mean(tensor, dims=None: list, keepDims=False):
             tensor=tensor.mean(dim, keepDims=True)
         if not keepDims:
             for idx, dim in enumerate(dims):
-                tensor.squeeze_(d-i)
+                tensor.squeeze_(dim-idx)
         return tensor
