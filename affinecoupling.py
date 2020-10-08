@@ -2,53 +2,58 @@ import torch
 import torch.nn as nn
 from nn import NN as NN_func
 
-class AffineCouplingLayer(nn.Module):
-    def __init__(self, in_channels, additive_coupling=False):
-        super(AffineCouplingLayer, self).__init__()
-        self.NN = NN_func(in_channels)
 
-        self.s_forward = 0
-        self.s_reverse = 0
+class AffineCouplingLayer(nn.Module):
+    def __init__(self, z, additive_coupling=False):
+        super(AffineCouplingLayer, self).__init__()
+        assert len(z.shape) == 4  # expect data to be (batch_size, channels, height, width)
+        in_channels, out_channels = z.shape[2], z.shape[3]
+        self.NN = NN_func(in_channels, out_channels)
+
+        self.scale_forward = torch.zeros(1)
+        self.scale_reverse = torch.zeros(1)
 
         self.additive_coupling = additive_coupling
 
     def forward(self, x):
-        # assuming shape is (batch_size, channels, a, b)
+        # assuming shape is (batch_size, channels, height, width)
         x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
 
         if self.additive_coupling:
-            s = 1
-            y_a = x_a # do they still add with t and use the NN function for additive coupling?
+            scale = 1
+            y_a = x_a + self.NN(x_b)  # there is no scale when using additive coupling, only shift hence the adding
         else:
-            s = self.NN(x_b)
-            s,t = torch.split(s, s.shape[1] // 2, 1)
-            s = torch.exp(torch.log(s))
-            y_a = s * x_a + t #s and x_a has to be same shape in order to perform hadamard product
+            h = self.NN(x_b)
+            shift = h[:, 0::2, :, :]  # s = scale and t = shift
+            scale = torch.sigmoid(torch.log(h[:, 1::2, :, :]))  # they add 2. in the code but i guess we can skip
+            y_a = scale * x_a + shift
 
-        self.s_forward = s
+        self.s_forward = scale
         y_b = x_b
-        y = torch.cat((y_a, y_b), dim=1) # if channel is in the second dimension
+        y = torch.cat((y_a, y_b), dim=1)  # if channel is in the second dimension
 
         return y
 
     def reverse(self, y):
-        # assuming shape is (batch_size, channels, a, b)
+        # assuming shape is (batch_size, channels, height, width)
         y_a, y_b = torch.split(y, y.shape[1] // 2, 1)
 
         if self.additive_coupling:
-            s = 1
-            x_a = y_a # do they still add with t and use the NN function for additive coupling?
+            scale = 1
+            x_a = y_a + self.NN(y_b)
         else:
-            s = self.NN(y_b)
-            s,t = torch.split(s, s.shape[1] // 2, 1)
-            s = torch.exp(torch.log(s))
-            x_a = (y_a - t) / s #s and x_a has to be same shape in order to perform hadamard product
+            h = self.NN(y_b)
+            shift = h[:, 0::2, :, :]
+            scale = torch.sigmoid(torch.log(h[:, 1::2, :, :]))  # they add 2. in the code, but i guess we can skip
+            x_a = (y_a - shift) / scale
 
-        self.s_reverse = s
+        self.scale_reverse = scale
         x_b = y_b
-        x = torch.cat((x_a, x_b), dim=1) # if channel is in the second dimension
+        x = torch.cat((x_a, x_b), dim=1)  # if channel is in the second dimension
 
         return x
 
-    def logds(self):
-        return sum(torch.log(torch.abs(self.s_forward)))
+    # use logds only after forward or reverse has been calculated
+    def logds(self, forward):
+        scale = self.scale_forward if forward else self.scale_reverse
+        return torch.sum(torch.log(torch.abs(scale)), dim=[1, 2, 3])
