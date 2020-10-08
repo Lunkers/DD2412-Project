@@ -20,12 +20,14 @@ class InvConv(nn.Module):
         self.calculate_logdet = calculate_logdet
 
     def forward(self, x, logdet):
+        shape = x.size()
         dlogdet = torch.slogdet(self.w)[1] * shape[2] * shape[3] 
         y = F.conv2d(x, self.w)
         return y, logdet + dlogdet
 
 
     def reverse(self, y, logdet):
+        shape = y.size() #might be wrong, and we should keep size in self?
         weight = torch.inverse(self.w.double()).float()
         dlogdet = torch.slogdet(self.w)[1] * shape[2] * shape[3] 
         x = F.conv2d(y, weight)
