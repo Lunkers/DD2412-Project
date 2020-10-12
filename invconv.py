@@ -10,13 +10,14 @@ class InvConv(nn.Module):
         > github.com/openAI/glow
     """
     def __init__(self, num_channels, calculate_logdet = True):
+        super(InvConv, self).__init__()
         self.num_channels = num_channels
         # random initialization of convolution weights
         w_initialized = np.random.randn(num_channels, num_channels)
         # make orthogonal
         w_initialized = np.linalg.qr(w_initialized)[0].astype(np.float32) 
 
-        self.w = nn.Parameter(torch.from_numpy(w_init))
+        self.w = nn.Parameter(torch.from_numpy(w_initialized))
         self.calculate_logdet = calculate_logdet
 
     def forward(self, x, logdet):

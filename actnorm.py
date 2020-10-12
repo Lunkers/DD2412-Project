@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from
 
 
-def logAbs(): return x: torch.log(torch.abs(x))
+logAbs = lambda x: torch.log(torch.abs(x))
 
 
 class ActNorm(nn.Module):
@@ -35,17 +34,13 @@ class ActNorm(nn.Module):
     def initialize(self, x):
         with torch.no_grad():
             shape = x.shape()
-            if len(shape) == 4:
-                mean = torch.mean(x.clone(), dims=[0, 2, 3], keepDims=True)
-                variance = torch.mean((x.clone() + bias) ** 2,
-                                      dims=[0, 2, 3], keepDims=True)
-                std_dev = (self.scale_factor / (variance.sqrt() + 1e-6))
+            dim = [0,2,3] if len(shape) == 4 else [0]
+            mean = torch.mean(x.clone(), dim=dim, keepdim=True)
+            variance = torch.mean((x.clone() + self.bias) ** 2,
+                                  dim=dim, keepdim=True)
+            std_dev = (self.scale_factor / (variance.sqrt() + 1e-6))
 
-            elif len(shape) == 2:
-                mean = torch.mean(x.clone(), dims=[0], keepDims=True)
-                variance = torch.mean((x.clone() + bias) ** 2,
-                                      dims=[0], keepDims=True)
-                std_dev = (self.scale_factor / (variance.sqrt() + 1e-6))
+            if len(shape) == 2:
                 # reshape bias and scale tensors
                 self.bias = nn.Parameter(torch.zeros(1, self.in_channels))
                 self.scale = nn.Parameter(torch.zeros(1, self.in_channels))
