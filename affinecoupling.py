@@ -4,10 +4,8 @@ from nn import NN as NN_func
 
 
 class AffineCouplingLayer(nn.Module):
-    def __init__(self, z, additive_coupling=False):
+    def __init__(self, in_channels, out_channels=512, additive_coupling=False):
         super(AffineCouplingLayer, self).__init__()
-        assert len(z.shape) == 4  # expect data to be (batch_size, channels, height, width)
-        in_channels, out_channels = z.shape[2], z.shape[3]
         self.NN = NN_func(in_channels, out_channels)
 
         self.scale_forward = torch.zeros(1)
