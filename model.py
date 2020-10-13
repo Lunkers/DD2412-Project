@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from affinecoupling import AffineCouplingLayer
 from actnorm import ActNorm
 from invconv import InvConv
 
-# TODO: Add logic for reverse
-# TODO: Fix split with gaussian
 # TODO: Make sure dimens are correct through the operations
 # TODO: Check that it trains correctly and optimizes the right parameters (make sure nn.ModuleList works correctly)
 # TODO: Make sure actnorm, inconv and affine coupling are complete and correct
@@ -30,14 +29,26 @@ class Glow(nn.Module):
         self.step_flow = StepFlow(x)
         nn.ModuleList([self.step_flow])  # not sure if registered correctly
 
-    def forward(self, z):
+    def forward(self, x):
         logdet = 0
+        eps = []
+        x = self.squeeze(x)
         for i in range(self.levels):
             for j in range(self.depth):
-                z, logdet = self.step_flow(z)
+                x, logdet = self.step_flow(x)
             if i < self.levels-1:
-                z, logdet = self.split(z)
-        return z, logdet
+                x, logdet, _eps = self.split(x, logdet)
+                eps.append(_eps)
+        return x, logdet, eps
+
+    def reverse(self, x, eps=[], eps_std=None):
+        for i in reversed(range(self.levels)):
+            if i < self.levels-1:
+                x = self.split_reverse(x, eps, eps_std)
+            for j in range(self.depth):
+                x, logdet = self.step_flow.reverse(x, 0)
+        
+        return x
 
     def squeeze(self, x: torch.Tensor, factor=2, reverse=False):
         batch_size, channels, height, width = x.size()
@@ -59,10 +70,60 @@ class Glow(nn.Module):
 
         return x
 
-    def split(self, x):
-        # should we include gaussianizing like they do in the code? There's a more involved split in the original code
+    def split(self, x, logdet=0.):
         x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
-        return x_a, x_b
+        gd = self.split_prior(x_a)
+        logdet += gd.logp(x_b)
+        x_a = self.squeeze(x_a)
+        eps = gd.get_eps(x_b)    
+
+        return x_a, logdet, eps
+
+    def split_prior(self, x_a):
+        h = self.zero_conv2D(x_a)
+
+        mean = h[:, 0::2, :, :]
+        logs = h[:, 1::2, :, :]
+        gd = self.gaussian_diag(mean, logs)
+        return gd
+
+    def split_reverse(self, x, eps, eps_std):
+        x_a = self.squeeze(x, reverse=True)
+        gd = self.split_prior(x_a)
+
+        if eps is not None:
+            x_b = gd.sample2(eps)
+        elif eps_std is not None:
+            x_b = gd.sample2(gd.eps * torch.reshape(eps_std, [-1, 1, 1, 1]))
+        else:
+            x_b = gd.sample
+        
+        x = torch.cat((x_a, x_b), dim=1)
+
+        return x
+
+    
+    def zero_conv2D(self, x, in_channels=512):
+        out_channels = x.shape[1]
+        zero_conv = nn.Conv2d(in_channels, out_channels, kernel_size=3)
+        h = zero_conv(x)
+        
+        
+        return h
+    
+    def gaussian_diag(self, mean, logsd):
+        class o(object):
+            pass
+        o.mean = mean
+        o.logsd = logsd
+        o.eps = torch.normal(mean=mean.shape()) 
+        o.sample = mean + torch.exp(logsd) * o.eps # sample with Gaussian 
+        o.sample2 = lambda eps: mean + torch.exp(logsd) * eps # sample with normalized gaussian
+        o.logps = lambda x: -0.5 * (np.log(2*np.pi) + 2. * logsd + (x - mean) ** 2 / torch.exp(2. * logsd)) # compute gaussian distribution 
+        o.logp = lambda x: torch.sum(o.logps(x)) # (iid) summation of log distributions 
+        o.get_eps = lambda x: (x - mean) / torch.exp(logsd) # normalising to zero mean and unit variance
+        return o
+        
 
 class StepFlow(nn.Module):
     def __init__(self, x):
@@ -78,13 +139,19 @@ class StepFlow(nn.Module):
 
         nn.ModuleList([self.actnorm, self.inconv, self.affine_coupling])  # not sure if this is correct, will need to double check
 
-    def forward(self, x, logdet=None):
-        z, logdet = self.actnorm(x, logdet)
+    def forward(self, z, logdet=None):
+        z, logdet = self.actnorm(z, logdet)
         z, logdet = self.inconv(z, logdet)
         z, logdet = self.affine_coupling(z, logdet)
 
         return z, logdet
 
+    def reverse(self, z, logdet=None):
+        z, logdet = self.affine_coupling.reverse(z, logdet)
+        z, logdet = self.inconv.reverse(z, logdet)
+        z, logdet = self.actnorm.reverse(z, logdet)
+
+        return z, logdet
 
 if __name__ == "__main__":
     # small test of squeeze
