@@ -4,6 +4,13 @@ from affinecoupling import AffineCouplingLayer
 from actnorm import ActNorm
 from invconv import InvConv
 
+# TODO: Add logic for reverse
+# TODO: Add logic for logdet and building on previous logdet values
+# TODO: Fix split with gaussian
+# TODO: Make sure dimens are correct through the operations
+# TODO: Check that it trains correctly and optimizes the right parameters (make sure nn.ModuleList works correctly)
+# TODO: Make sure actnorm, inconv and affine coupling are complete and correct
+
 class Glow(nn.Module):
     # multiple design choices here
     # one thing is whether we want to include the looping in or outside the model?
@@ -24,12 +31,13 @@ class Glow(nn.Module):
         nn.ModuleList([self.step_flow])  # not sure if registered correctly
 
     def forward(self, z):
-
+        logdet = 0
         for i in range(self.levels):
             for j in range(self.depth):
                 z, logdet = self.step_flow(z)
             if i < self.levels-1:
                 z, logdet = self.split(z)
+        return z, logdet
 
     def squeeze(self, x: torch.Tensor, factor=2, reverse=False):
         batch_size, channels, height, width = x.size()
