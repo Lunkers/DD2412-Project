@@ -13,7 +13,7 @@ class AffineCouplingLayer(nn.Module):
 
         self.additive_coupling = additive_coupling
 
-    def forward(self, x):
+    def forward(self, x, input_logdet):
         # assuming shape is (batch_size, channels, height, width)
         x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
 
@@ -30,9 +30,12 @@ class AffineCouplingLayer(nn.Module):
         y_b = x_b
         y = torch.cat((y_a, y_b), dim=1)  # if channel is in the second dimension
 
-        return y
+        logdet = self.calc_logdet(reverse=False)
+        logdet -= input_logdet
 
-    def reverse(self, y):
+        return y, logdet
+
+    def reverse(self, y, input_logdet):
         # assuming shape is (batch_size, channels, height, width)
         y_a, y_b = torch.split(y, y.shape[1] // 2, 1)
 
@@ -49,9 +52,12 @@ class AffineCouplingLayer(nn.Module):
         x_b = y_b
         x = torch.cat((x_a, x_b), dim=1)  # if channel is in the second dimension
 
-        return x
+        logdet = self.calc_logdet(reverse=True)
+        logdet -= input_logdet
+
+        return x, logdet
 
     # use logds only after forward or reverse has been calculated
-    def logds(self, forward):
-        scale = self.scale_forward if forward else self.scale_reverse
+    def calc_logdet(self, reverse=False):
+        scale = self.scale_forward if reverse else self.scale_reverse
         return torch.sum(torch.log(torch.abs(scale)), dim=[1, 2, 3])

@@ -5,18 +5,18 @@ from actnorm import ActNorm
 from invconv import InvConv
 
 # TODO: Add logic for reverse
-# TODO: Add logic for logdet and building on previous logdet values
 # TODO: Fix split with gaussian
 # TODO: Make sure dimens are correct through the operations
 # TODO: Check that it trains correctly and optimizes the right parameters (make sure nn.ModuleList works correctly)
 # TODO: Make sure actnorm, inconv and affine coupling are complete and correct
+# TODO: Original code uses same padding, but there isn't a corresponding one in pytorch, wonder if we have to take into consideration?
 
 class Glow(nn.Module):
     # multiple design choices here
     # one thing is whether we want to include the looping in or outside the model?
     # we also want to save the z's and logdets that are produced in the model I guess
 
-    def __init__(self, x, levels, depth, if_logdet=True):
+    def __init__(self, x, levels, depth):
         super(Glow, self).__init__()
         # expecting shape of (batch_size, channels, height, width)
         # in_channels = x.shape[1]
@@ -27,7 +27,7 @@ class Glow(nn.Module):
         self.logdet = nn.Parameter(torch.zeros(1))
         self.levels = levels
         self.depth = depth
-        self.step_flow = StepFlow(x, if_logdet)
+        self.step_flow = StepFlow(x)
         nn.ModuleList([self.step_flow])  # not sure if registered correctly
 
     def forward(self, z):
@@ -65,25 +65,23 @@ class Glow(nn.Module):
         return x_a, x_b
 
 class StepFlow(nn.Module):
-    def __init__(self, x, logdet=True):
+    def __init__(self, x):
         super(StepFlow, self).__init__()
         assert len(x.shape) == 4
 
         in_channels = x.shape[1]
         assert in_channels % 2 == 0
 
-        self.actnorm = ActNorm(in_channels, logdet=logdet)
-        self.inconv = InvConv(in_channels, logdet)
+        self.actnorm = ActNorm(in_channels)
+        self.inconv = InvConv(in_channels)
         self.affine_coupling = AffineCouplingLayer(in_channels)
 
         nn.ModuleList([self.actnorm, self.inconv, self.affine_coupling])  # not sure if this is correct, will need to double check
 
-    def forward(self, x):
-        z, logdet = self.actnorm(x)
+    def forward(self, x, logdet=None):
+        z, logdet = self.actnorm(x, logdet)
         z, logdet = self.inconv(z, logdet)
-        z = self.affine_coupling(z)  # logds is calculated
-        # TODO: if necessary can refactor this into forward to return logdet, making it consistent with actnorm and inconv
-        logdet = self.affine_coupling.logds(forward=True)
+        z, logdet = self.affine_coupling(z, logdet)
 
         return z, logdet
 
