@@ -17,7 +17,7 @@ class ActNorm(nn.Module):
         > https://github.com/rosinality/glow-pytorch
     """
 
-    def __init__(self, in_channels, scale=1., logdet=True):
+    def __init__(self, in_channels, scale=1.):
         super(ActNorm, self).__init__()
         # trainable params (assume 4d tensor on creation, change if detected in initialize)
         self.bias = nn.Parameter(torch.zeros(1, in_channels, 1, 1))
@@ -27,7 +27,6 @@ class ActNorm(nn.Module):
         self.scale_factor = scale
         # buffer to check initialization
         self.register_buffer('initialized', torch.tensor(1))
-        self.logdet = logdet
 
     # data-dependent weight initialization
     # we want to start off with zero mean and unit variance on the initial minibatch
@@ -51,8 +50,25 @@ class ActNorm(nn.Module):
 
             self.initialized += 1
 
-    def forward(self, x):
+    def forward(self, x, input_logdet=None):
         shape = x.shape()
+        height, width = self.get_shape(shape)
+
+        # initialize on first item in buffer
+        if self.initialized.item() == 0:
+            self.initialize(x)
+
+        log_det = self.calc_logdet(height, width)
+        if input_logdet != None:
+            input_logdet += log_det
+
+        if input_logdet != None:
+            # the original does this in separate helper functions, we don't need that IMO
+            return self.scale * x + self.bias, input_logdet
+        else:
+            return self.scale * x + self.bias
+
+    def get_shape(self, shape):
         if len(shape) == 2:
             height, width = shape
         elif len(shape) == 4:
@@ -61,20 +77,21 @@ class ActNorm(nn.Module):
         else:
             raise Exception(
                 f"Incorrect amount of dimensions in input data: should be 2 or 4, is {len(shape)}")
+        return height, width
 
-        # initialize on first item in buffer
-        if self.initialized.item() == 0:
-            self.initialize(x)
-
+    def calc_logdet(self, height, width, reverse=False):
         log_abs = logAbs(self.scale)
-
         log_det = height * width * torch.sum(log_abs)
+        if reverse:
+            log_det *= -1
 
-        if self.logdet:
-            # the original does this in separate helper functions, we don't need that IMO
-            return self.scale * x + self.bias, log_det
-        else:
-            return self.scale * x + self.bias
+        return log_det
 
-    def reverse(self, output):
-        return (output - self.bias)/self.scale
+    def reverse(self, output, input_logdet=None):
+        height, width = self.get_shape(output)
+        output = (output - self.bias) / self.scale
+
+        if input_logdet != None:
+            input_logdet += self.calc_logdet(height, width, True)
+            return output, input_logdet
+        return output
