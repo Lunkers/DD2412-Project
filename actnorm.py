@@ -26,13 +26,13 @@ class ActNorm(nn.Module):
         self.in_channels = in_channels
         self.scale_factor = scale
         # buffer to check initialization
-        self.register_buffer('initialized', torch.tensor(1))
+        self.register_buffer('initialized', torch.tensor(0))
 
     # data-dependent weight initialization
     # we want to start off with zero mean and unit variance on the initial minibatch
     def initialize(self, x):
         with torch.no_grad():
-            shape = x.shape()
+            shape = x.shape
             dim = [0,2,3] if len(shape) == 4 else [0]
             mean = torch.mean(x.clone(), dim=dim, keepdim=True)
             variance = torch.mean((x.clone() + self.bias) ** 2,
@@ -41,17 +41,17 @@ class ActNorm(nn.Module):
 
             if len(shape) == 2:
                 # reshape bias and scale tensors
+                self.in_channels = x.shape[1]  # number of channels for mnist is only 1
                 self.bias = nn.Parameter(torch.zeros(1, self.in_channels))
                 self.scale = nn.Parameter(torch.zeros(1, self.in_channels))
 
             self.bias.data.copy_(-mean.data)
-            # addition to avoid divsion by zero
             self.scale.data.copy_(std_dev.data)
 
             self.initialized += 1
 
-    def forward(self, x, input_logdet=None):
-        shape = x.shape()
+    def forward(self, x, input_logdet=None, if_logdet=True):
+        shape = x.shape
         height, width = self.get_shape(shape)
 
         # initialize on first item in buffer
@@ -60,11 +60,12 @@ class ActNorm(nn.Module):
 
         log_det = self.calc_logdet(height, width)
         if input_logdet != None:
-            input_logdet += log_det
+            log_det += input_logdet
 
-        if input_logdet != None:
+
+        if if_logdet:
             # the original does this in separate helper functions, we don't need that IMO
-            return self.scale * x + self.bias, input_logdet
+            return self.scale * x + self.bias, log_det
         else:
             return self.scale * x + self.bias
 
@@ -88,7 +89,7 @@ class ActNorm(nn.Module):
         return log_det
 
     def reverse(self, output, input_logdet=None):
-        height, width = self.get_shape(output)
+        height, width = self.get_shape(output.shape)
         output = (output - self.bias) / self.scale
 
         if input_logdet != None:
