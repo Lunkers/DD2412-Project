@@ -21,7 +21,8 @@ class InvConv(nn.Module):
 
     def forward(self, x, logdet):
         shape = x.size()
-        dlogdet = torch.slogdet(self.w)[1] * shape[2] * shape[3] 
+        height, width = shape[2], shape[3]
+        dlogdet = torch.slogdet(self.w)[1] * height * width
         y = F.conv2d(x, self.w)
         return y, logdet + dlogdet
 
