@@ -60,7 +60,7 @@ class ActNorm(nn.Module):
 
         log_det = self.calc_logdet(height, width)
         if input_logdet != None:
-            log_det += input_logdet
+            log_det = log_det + input_logdet
 
 
         if if_logdet:
@@ -80,11 +80,9 @@ class ActNorm(nn.Module):
                 f"Incorrect amount of dimensions in input data: should be 2 or 4, is {len(shape)}")
         return height, width
 
-    def calc_logdet(self, height, width, reverse=False):
+    def calc_logdet(self, height, width):
         log_abs = logAbs(self.scale)
         log_det = height * width * torch.sum(log_abs)
-        if reverse:
-            log_det *= -1
 
         return log_det
 
@@ -93,6 +91,6 @@ class ActNorm(nn.Module):
         output = (output - self.bias) / self.scale
 
         if input_logdet != None:
-            input_logdet += self.calc_logdet(height, width, True)
+            input_logdet = input_logdet - self.calc_logdet(height, width)
             return output, input_logdet
         return output
