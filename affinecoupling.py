@@ -22,18 +22,18 @@ class AffineCouplingLayer(nn.Module):
             y_a = x_a + self.NN(x_b)  # there is no scale when using additive coupling, only shift hence the adding
         else:
             h = self.NN(x_b)
-            shift = h[:, 0::2, :, :]  # s = scale and t = shift
-            scale = torch.sigmoid(torch.log(h[:, 1::2, :, :]))  # they add 2. in the code but i guess we can skip
+            scale, shift = torch.chunk(h, 2, 1)
+            scale = torch.log(torch.sigmoid(scale + 2.))
             y_a = scale * x_a + shift
 
-        self.s_forward = scale
+        self.scale_forward = scale
         y_b = x_b
         y = torch.cat((y_a, y_b), dim=1)  # if channel is in the second dimension
 
         logdet = self.calc_logdet(reverse=False)
-        logdet -= input_logdet
+        input_logdet += logdet
 
-        return y, logdet
+        return y, input_logdet
 
     def reverse(self, y, input_logdet):
         # assuming shape is (batch_size, channels, height, width)
@@ -44,8 +44,8 @@ class AffineCouplingLayer(nn.Module):
             x_a = y_a + self.NN(y_b)
         else:
             h = self.NN(y_b)
-            shift = h[:, 0::2, :, :]
-            scale = torch.sigmoid(torch.log(h[:, 1::2, :, :]))  # they add 2. in the code, but i guess we can skip
+            scale, shift = torch.chunk(h, 2, 1)
+            scale = torch.log(torch.sigmoid(scale + 2.))
             x_a = (y_a - shift) / scale
 
         self.scale_reverse = scale
@@ -53,11 +53,11 @@ class AffineCouplingLayer(nn.Module):
         x = torch.cat((x_a, x_b), dim=1)  # if channel is in the second dimension
 
         logdet = self.calc_logdet(reverse=True)
-        logdet -= input_logdet
+        input_logdet -= logdet
 
-        return x, logdet
+        return x, input_logdet
 
     # use logds only after forward or reverse has been calculated
     def calc_logdet(self, reverse=False):
-        scale = self.scale_forward if reverse else self.scale_reverse
+        scale = self.scale_forward if not reverse else self.scale_reverse
         return torch.sum(torch.log(torch.abs(scale)), dim=[1, 2, 3])
