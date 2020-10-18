@@ -1,10 +1,9 @@
-import pytest
 import torch
 from actnorm import ActNorm
 from invconv import InvConv
 from affinecoupling import AffineCouplingLayer
 import random
-import numpy as np
+import model as model
 
 # TODO: Check that the right parameters are trained
 # TODO: To check correction of forward this can be cumbersome because need to basically reimplement the essential operations, perhaps sufficient that we eyeball theoretically
@@ -55,6 +54,7 @@ cifar, mnist = make_default_dummy_dataset(2, 2)
 in_channel_cifar = cifar.shape[1]
 in_channel_mnist = mnist.shape[1]
 
+
 class TestActnorm:
     """
         expected main behavior of actnorm:
@@ -69,7 +69,7 @@ class TestActnorm:
         z, logdet = actnorm(data, if_logdet=True)
 
         assert z.shape == data.shape  # input shape and output shape should be same
-        assert len(logdet.shape) == 0  # logdet only a single valued tensor
+        assert len(logdet.shape) == 0  # single valued tensor
         # scale and bias parameters should only work on the channel entries of the input
         assert list(actnorm.scale.shape) == [1, in_channel, 1, 1]
         assert list(actnorm.bias.shape) == [1, in_channel, 1, 1]
@@ -86,7 +86,7 @@ class TestActnorm:
         z_reversed, logdet_reversed = actnorm.reverse(z, logdet)
 
         assert torch.all(z_reversed.eq(data)).item()  # if the values are the same then the shapes are the same
-        assert logdet_reversed.item() == 0
+        assert logdet_reversed.item() == 0  # single valued tensor
         assert list(actnorm.scale.shape) == [1, in_channel, 1, 1]
         assert list(actnorm.bias.shape) == [1, in_channel, 1, 1]
 
@@ -124,7 +124,7 @@ class TestInvConv:
 
     def reverse_shape_and_value(self, in_channel, data):
         invconv = InvConv(in_channel)
-        dummy_logdet = make_dummy_logdet()
+        dummy_logdet = make_dummy_logdet(random=True)
         z, logdet = invconv(data, dummy_logdet)
         z_reversed, logdet_reversed = invconv.reverse(z, logdet)
 
@@ -138,4 +138,107 @@ class TestInvConv:
 
     def test_reverse_shape_and_value_mnist(self):
         self.reverse_shape_and_value(in_channel_mnist, make_dummy_data(2, 1, 28, 28, random=True))
+
+
+class TestAffineCoupling:
+    """
+        expected main behavior of AffineCoupling:
+        - output shape the same as input shape
+        - logdet should be a 1D array consisting of sums of log dets for each datapoint in a given batch
+    """
+
+    def forward_shape_output(self, in_channel, data):
+        affinecl = AffineCouplingLayer(in_channel)
+        logdet = make_dummy_logdet(random=True)
+        z, logdet = affinecl(data, logdet)
+        height, width = data.shape[2], data.shape[3]
+
+        assert list(z.shape) == [2, in_channel, height, width]
+        assert len(logdet.shape) == 1  # batches of sums of log dets, so for each batch we have a sum of log dets
+
+    def test_shape_output_cifar(self):
+        self.forward_shape_output(4, make_dummy_data(2, 4, 32, 32, random=True))
+
+    def test_shape_output_mnist(self):
+        self.forward_shape_output(2, make_dummy_data(2, 2, 28, 28, random=True))
+
+    def reverse_shape_and_value(self, in_channel, data):
+        affinecl = AffineCouplingLayer(in_channel)
+        dummy_logdet = make_dummy_logdet(random=True)
+        z, logdet = affinecl(data, dummy_logdet)
+        z_reversed, logdet_reversed = affinecl.reverse(z, logdet)
+
+        assert len(z_reversed.shape) == len(data.shape)
+        assert compute_max_relative_error(z_reversed, data) < eps
+        # this is to make the tensor dimensionality compatible, the values of dummy_logdet stays the same
+        dummy_logdet_with_batches = torch.empty(data.shape[0]).fill_(dummy_logdet)
+        assert compute_max_relative_error(logdet_reversed, dummy_logdet_with_batches) < eps
+
+    def test_reverse_shape_and_value_cifar(self):
+        self.reverse_shape_and_value(4, make_dummy_data(2, 4, 32, 32, random=True))
+
+    def test_reverse_shape_and_value_mnist(self):
+        self.reverse_shape_and_value(2, make_dummy_data(2, 2, 28, 28, random=True))
+
+
+"""
+    Behavior of forward squeeze
+    channel: channel*factor*factor
+    height: height/2
+    width: width/2
+    
+    Behavior for reverse is mirror of above
+"""
+def test_squeeze_shape():
+    # cifar
+    x = make_dummy_data(2, 3, 32, 32, random=True)
+    y = model.squeeze(x)
+    assert list(y.shape) == [2, 12, 16, 16]
+    z = model.squeeze(y, reverse=True)
+    assert list(z.shape) == [2, 3, 32, 32]
+
+    # mnist
+    x = make_dummy_data(2, 1, 28, 28, random=True)
+    y = model.squeeze(x)
+    assert list(y.shape) == [2, 4, 14, 14]
+    z = model.squeeze(y, reverse=True)
+    assert list(z.shape) == [2, 1, 28, 28]
+
+
+"""
+    Behavior of forward split
+    z -> [batch_size, channels, height, width] = [batch_size, channels*2, height/2, width/2]
+    logdet -> 1D tensor, remains same shape
+    eps -> [batch_size, channels, height, width] = [batch_size, channels/2, height, width]
+    
+    Behavior of reverse split
+    z -> original shape
+"""
+def split_shape(in_channel, data):
+    # cifar
+    batch_size, height, width = data.shape[0], data.shape[2], data.shape[3]
+    # make logdet same shape as after affine coupling: 1D tensor with same number of entries as batch size
+    dummy_logdet = torch.empty(data.shape[0]).fill_(make_dummy_logdet(random=True))
+    z, logdet, eps = model.split(data, dummy_logdet)
+
+    assert list(z.shape) == [batch_size, in_channel * 2, height / 2, width / 2]
+    assert logdet.shape == dummy_logdet.shape
+    assert list(eps.shape) == [batch_size, in_channel / 2, height, width]
+    assert 1 == 2
+
+    # multiple paths
+    # eps != None or eps_std != None or both are None
+    eps_std = make_dummy_data(1, 1, 1, 1, random=True)  # should be 1 single value
+    z_with_eps = model.split_reverse(z, eps, None)
+    z_with_eps_std = model.split_reverse(z, None, eps_std)
+    z_without_any_eps = model.split_reverse(z, None, None)
+    assert list(z_with_eps.shape) == [batch_size, in_channel, height, width]
+    assert list(z_with_eps_std.shape) == [batch_size, in_channel, height, width]
+    assert list(z_without_any_eps.shape) == [batch_size, in_channel, height, width]
+
+def test_split_shape_cifar():
+    split_shape(4, make_dummy_data(2, 4, 32, 32, random=True))
+
+# def test_split_shape_mnist():
+#     split_shape(4, make_dummy_data(4, 2, 28, 28, random=True))
 
