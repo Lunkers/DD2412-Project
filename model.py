@@ -23,11 +23,9 @@ class Glow(nn.Module):
         # assert in_channels % 2 == 0
         #
         # self.channels = in_channels
-        self.z = nn.Parameter(torch.zeros(1))
-        self.logdet = nn.Parameter(torch.zeros(1))
         self.levels = levels
         self.depth = depth
-        self.step_flow = StepFlow(x)
+        self.step_flow = StepFlow(squeeze(x))
         nn.ModuleList([self.step_flow])  # not sure if registered correctly
 
     def forward(self, x):
@@ -36,9 +34,12 @@ class Glow(nn.Module):
         x = squeeze(x)
         for i in range(self.levels):
             for j in range(self.depth):
-                x, logdet = self.step_flow(x)
+                print(f"iter: {i,j}")
+                x, logdet = self.step_flow(x, logdet)
+                print(f"iter: {i,j}\nlogdet: {logdet}")
             if i < self.levels - 1:
                 x, logdet, _eps = split(x, logdet)
+                print(f"after split\niter: {i,j}\nlogdet: {logdet}")
                 eps.append(_eps)
         return x, logdet, eps
 
