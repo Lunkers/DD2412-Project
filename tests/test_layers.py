@@ -1,17 +1,23 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch import optim as optim
+
 from actnorm import ActNorm
 from invconv import InvConv
 from affinecoupling import AffineCouplingLayer
 import random
 import model as model
+import numpy as np
+from nn import NN
 
-# TODO: Check that the right parameters are trained
+# TODO: Fix so that parameters in affinecoupling layers are being trained, idk why it's not atm
 # TODO: To check correction of forward this can be cumbersome because need to basically reimplement the essential operations, perhaps sufficient that we eyeball theoretically
 
 manualSeed = 999
 random.seed(manualSeed)
 torch.manual_seed(manualSeed)
-eps = 1e-3
+eps = 1e-2
 
 use_cuda = True
 pin_memory = False
@@ -47,6 +53,51 @@ def make_dummy_logdet(random=False):
 def compute_max_relative_error(x, y):
     return torch.max(torch.abs(x - y) /
                      torch.max(torch.empty(x.shape).fill_(eps), torch.abs(x) + torch.abs(y)))
+
+
+def NLL(z, logdet, k=256):
+    prior_log_likelihood = 0.5 * (z ** 2 + np.log(2 * np.pi))
+    prior_log_likelihood = prior_log_likelihood.flatten(1).sum(-1) - np.log(k) * np.prod(z.size()[:1])
+    log_likelihood = prior_log_likelihood + logdet
+    negative_log_likelihood = -log_likelihood.mean()
+
+    return negative_log_likelihood
+
+
+def get_conv_trainable_parameters(layers):
+    trainable_params = []
+    for l in layers:
+        trainable_params.append((l.weight, l.bias))
+    return trainable_params
+
+
+def check_trainable_parameters(net, data, logdet=None):
+    trained = True
+    before = []
+    for param in net.parameters():
+        # param data are somehow by reference, so need to clone
+        before.append(param.data.clone())
+
+    # go 1 training step
+    optimizer = optim.Adam(net.parameters())
+    data.to(device)
+    optimizer.zero_grad()
+    z, logdet = net(data, logdet)
+    loss = NLL(z, logdet)
+    loss.backward()
+    optimizer.step()
+
+    after = []
+    for param in net.parameters():
+        after.append(param.data)
+
+    # expects every trainable parameter to be trained
+    for be, af in zip(before, after):
+        if torch.all(be.eq(af)).item():
+            trained = False
+            break
+
+    assert trained == True
 
 
 # default data
@@ -96,6 +147,12 @@ class TestActnorm:
     def test_shape_and_value_reverse_mnist(self):
         self.reverse_shape_and_value(in_channel_mnist, mnist.clone())
 
+    def test_trainable_parameters_cifar(self):
+        check_trainable_parameters(ActNorm(3), data=make_dummy_data(2, 3, 32, 32, random=True))
+
+    def test_trainable_parameters_mnist(self):
+        check_trainable_parameters(ActNorm(1), data=make_dummy_data(2, 1, 28, 28, random=True))
+
 
 class TestInvConv:
     """
@@ -134,10 +191,18 @@ class TestInvConv:
         assert list(invconv.w.shape) == [in_channel, in_channel]
 
     def test_reverse_shape_and_value_cifar(self):
-        self.reverse_shape_and_value(in_channel_cifar, make_dummy_data(2, 3, 32, 32, random=True))
+        self.reverse_shape_and_value(3, make_dummy_data(2, 3, 32, 32, random=True))
 
     def test_reverse_shape_and_value_mnist(self):
-        self.reverse_shape_and_value(in_channel_mnist, make_dummy_data(2, 1, 28, 28, random=True))
+        self.reverse_shape_and_value(1, make_dummy_data(2, 1, 28, 28, random=True))
+
+    def test_trainable_parameters_cifar(self):
+        check_trainable_parameters(InvConv(3), data=make_dummy_data(2, 3, 32, 32, random=True),
+                                   logdet=make_dummy_logdet(random=True))
+
+    def test_trainable_parameters_mnist(self):
+        check_trainable_parameters(InvConv(1), data=make_dummy_data(2, 1, 28, 28, random=True),
+                                   logdet=make_dummy_logdet(random=True))
 
 
 class TestAffineCoupling:
@@ -180,6 +245,24 @@ class TestAffineCoupling:
     def test_reverse_shape_and_value_mnist(self):
         self.reverse_shape_and_value(2, make_dummy_data(2, 2, 28, 28, random=True))
 
+    def test_conv_in_computational_graph(self):
+        nn = NN(3)
+        for param in nn.parameters():
+            assert param.requires_grad
+
+        afl = AffineCouplingLayer(3)
+        for param in afl.parameters():
+            assert param.requires_grad
+
+    # def test_trainable_parameters_cifar(self):
+    #     check_trainable_parameters(AffineCouplingLayer(12), make_dummy_data(2, 12, 16, 16, random=True),
+    #                                make_dummy_logdet(random=True))
+
+    # def test_trainable_parameters_mnist(self):
+    #     check_trainable_parameters(AffineCouplingLayer(2),
+    #                                data=make_dummy_data(2, 2, 28, 28, random=True),
+    #                                logdet=make_dummy_logdet(random=True))
+
 
 """
     Behavior of forward squeeze
@@ -189,6 +272,8 @@ class TestAffineCoupling:
     
     Behavior for reverse is mirror of above
 """
+
+
 def test_squeeze_shape():
     # cifar
     x = make_dummy_data(2, 3, 32, 32, random=True)
@@ -214,8 +299,9 @@ def test_squeeze_shape():
     Behavior of reverse split
     z -> original shape
 """
+
+
 def split_shape(in_channel, data):
-    # cifar
     batch_size, height, width = data.shape[0], data.shape[2], data.shape[3]
     # make logdet same shape as after affine coupling: 1D tensor with same number of entries as batch size
     dummy_logdet = torch.empty(data.shape[0]).fill_(make_dummy_logdet(random=True))
@@ -224,7 +310,6 @@ def split_shape(in_channel, data):
     assert list(z.shape) == [batch_size, in_channel * 2, height / 2, width / 2]
     assert logdet.shape == dummy_logdet.shape
     assert list(eps.shape) == [batch_size, in_channel / 2, height, width]
-    assert 1 == 2
 
     # multiple paths
     # eps != None or eps_std != None or both are None
@@ -236,9 +321,11 @@ def split_shape(in_channel, data):
     assert list(z_with_eps_std.shape) == [batch_size, in_channel, height, width]
     assert list(z_without_any_eps.shape) == [batch_size, in_channel, height, width]
 
+
+# adjusted shape of cifar and mnist to after applying squeeze for testing robustness
 def test_split_shape_cifar():
-    split_shape(4, make_dummy_data(2, 4, 32, 32, random=True))
+    split_shape(12, make_dummy_data(2, 12, 16, 16, random=True))
 
-# def test_split_shape_mnist():
-#     split_shape(4, make_dummy_data(4, 2, 28, 28, random=True))
 
+def test_split_shape_mnist():
+    split_shape(4, make_dummy_data(2, 4, 14, 14, random=True))
