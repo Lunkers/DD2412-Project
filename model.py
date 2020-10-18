@@ -106,7 +106,7 @@ def squeeze(x: torch.Tensor, factor=2, reverse=False):
 def split(x, logdet=0.):
     x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
     gd = split_prior(x_a)
-    print(x_a.shape)
+
     logdet += gd.logp(x_b)
     x_a = squeeze(x_a)
     eps = gd.get_eps(x_b)
@@ -114,24 +114,21 @@ def split(x, logdet=0.):
     return x_a, logdet, eps
 
 
-def split_prior(x_a, reverse=False):
+def split_prior(x_a):
     in_channels = x_a.shape[1]
-    out_channels = in_channels
-    if reverse:
-        out_channels = in_channels * 2
+    out_channels = in_channels * 2
     h = zero_conv2D(x_a, in_channels, out_channels)
-    print(h.shape)
+
     mean = h[:, 0::2, :, :]
     logs = h[:, 1::2, :, :]
-    print(mean.shape)
-    print(logs.shape)
+
     gd = gaussian_diag(mean, logs)
     return gd
 
 
 def split_reverse(x, eps, eps_std):
     x_a = squeeze(x, reverse=True)
-    gd = split_prior(x_a, reverse=True)
+    gd = split_prior(x_a)
 
     if eps is not None:
         x_b = gd.sample2(eps)
