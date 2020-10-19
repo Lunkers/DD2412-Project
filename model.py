@@ -16,71 +16,82 @@ class Glow(nn.Module):
     # one thing is whether we want to include the looping in or outside the model?
     # we also want to save the z's and logdets that are produced in the model I guess
 
-    def __init__(self, x, levels, depth):
+    def __init__(self, in_channels, levels, depth):
         super(Glow, self).__init__()
         # expecting shape of (batch_size, channels, height, width)
-        # in_channels = x.shape[1]
-        # assert in_channels % 2 == 0
-        #
-        # self.channels = in_channels
         self.levels = levels
         self.depth = depth
-        self.step_flow = StepFlow(squeeze(x))
-        nn.ModuleList([self.step_flow])  # not sure if registered correctly
+        self.blocks = nn.ModuleList()
+        self.initialize_blocks(in_channels)
+
+    def initialize_blocks(self, in_channels):
+        for _ in self.levels:
+            self.blocks.append(Block(in_channels, self.depth))
+            in_channels *= 2
 
     def forward(self, x):
         logdet = 0
         eps = []
         x = squeeze(x)
-        for i in range(self.levels):
-            for j in range(self.depth):
-                print(f"iter: {i,j}")
-                x, logdet = self.step_flow(x, logdet)
-                print(f"iter: {i,j}\nlogdet: {logdet}")
+        for i, current_block in enumerate(self.blocks):
+            print(f"iter: {i}")
+            x, logdet = current_block(x, logdet)
+            print(f"logdet: {logdet.shape}\nx: {x.shape}")
             if i < self.levels - 1:
                 x, logdet, _eps = split(x, logdet)
-                print(f"after split\niter: {i,j}\nlogdet: {logdet}")
+                print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
         return x, logdet, eps
 
     def reverse(self, x, eps=[], eps_std=None):
-        for i in reversed(range(self.levels)):
+        for i, current_block in enumerate(self.blocks[::-1]):
             if i < self.levels - 1:
                 x = split_reverse(x, eps, eps_std)
-            for j in range(self.depth):
-                x, logdet = self.step_flow.reverse(x, 0)
+            x, logdet = current_block.reverse(x, 0)
 
+        return x
+
+class Block(nn.Module):
+    def __init__(self, in_channels, depth):
+        super(Block, self).__init__()
+
+        channel_after_squeeze = in_channels * 4
+        self.flows = nn.ModuleList([StepFlow(channel_after_squeeze) for _ in depth])
+
+    def forward(self, x, logdet=None):
+        for flow in self.flows:
+            x, logdet = flow(x, logdet)
+        return x, logdet
+
+    def reverse(self, x, logdet=None):
+        # don't think logdet is relevant for reverse it seems in the original code, it's mostly ignored
+        for flow in self.flows[::-1]:
+            x, logdet = flow.reverse(x, logdet)
         return x
 
 
 class StepFlow(nn.Module):
-    def __init__(self, x):
+    def __init__(self, in_channels):
         super(StepFlow, self).__init__()
-        assert len(x.shape) == 4
 
-        in_channels = x.shape[1]
         assert in_channels % 2 == 0
-
         self.actnorm = ActNorm(in_channels)
         self.inconv = InvConv(in_channels)
         self.affine_coupling = AffineCouplingLayer(in_channels)
 
-        nn.ModuleList(
-            [self.actnorm, self.inconv, self.affine_coupling])  # not sure if this is correct, will need to double check
+    def forward(self, x, logdet=None):
+        x, logdet = self.actnorm(x, logdet)
+        x, logdet = self.inconv(x, logdet)
+        x, logdet = self.affine_coupling(x, logdet)
 
-    def forward(self, z, logdet=None):
-        z, logdet = self.actnorm(z, logdet)
-        z, logdet = self.inconv(z, logdet)
-        z, logdet = self.affine_coupling(z, logdet)
+        return x, logdet
 
-        return z, logdet
+    def reverse(self, x, logdet=None):
+        x, logdet = self.affine_coupling.reverse(x, logdet)
+        x, logdet = self.inconv.reverse(x, logdet)
+        x, logdet = self.actnorm.reverse(x, logdet)
 
-    def reverse(self, z, logdet=None):
-        z, logdet = self.affine_coupling.reverse(z, logdet)
-        z, logdet = self.inconv.reverse(z, logdet)
-        z, logdet = self.actnorm.reverse(z, logdet)
-
-        return z, logdet
+        return x, logdet
 
 
 def squeeze(x: torch.Tensor, factor=2, reverse=False):

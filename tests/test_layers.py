@@ -11,7 +11,6 @@ import model as model
 import numpy as np
 from nn import NN
 
-# TODO: Fix so that parameters in affinecoupling layers are being trained, idk why it's not atm, even checked that they had requires_grad=True
 # TODO: To check correction of forward this can be cumbersome because need to basically reimplement the essential operations, perhaps sufficient that we eyeball theoretically
 
 manualSeed = 999
