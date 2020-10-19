@@ -31,8 +31,6 @@ class AffineCouplingLayer(nn.Module):
         y = torch.cat((y_a, y_b), dim=1)  # if channel is in the second dimension
 
         logdet = self.calc_logdet(reverse=False)
-        print(logdet)
-        print(input_logdet)
         input_logdet = input_logdet + logdet
 
         return y, input_logdet
