@@ -10,7 +10,8 @@ import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
 from preprocessing import Dataloader
-from loss_utils import FlowNLL
+from loss_utils import FlowNLL, bits_per_dimension
+from averagemeter import AverageMeter
 
 
 def main(args):
@@ -39,8 +40,15 @@ def main(args):
 
     start_epoch = 0
     # TODO: add functionality for loading checkpoints here
+    if args.resume:
+        print("resuming from checkpoint found in checkpoints/best.pth.tar.")
+        assert os.path.isdir("checkpoints") #raise error if no checkpoint directory is found
+        checkpoint = torch.load("checkpoints/best.pth.tar")
+        net.load_state_dict(checkpoint["model"])
+        global best_loss
+        best_loss = checkpoint["test_loss"]
+        start_epoch = checkpoint["epoch"]
 
-    # TODO: replace with the real loss function used in realNVP/glow
     loss_function = FlowNLL()
     optimizer = optim.Adam(net.parameters(), lr=args.lr)
     # scheduler found in code, no mention in paper
@@ -52,7 +60,8 @@ def main(args):
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         train(net, cifar_train, device, optimizer, loss_function, scheduler)
         # how often do we want to test?
-        test(model, cifar_test, device, loss_function, epoch)
+        if (epoch % 10 == 0):
+            test(model, cifar_test, device, loss_function, epoch)
 
 
 @torch.enable_grad()
@@ -68,12 +77,14 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
     """
 
     net.train()
+    loss_meter = AverageMeter("train-avg")
     for x, y in trainloader:
         x.to(device)
         optimizer.zero_grad()
         z, logdet = model(x)
         # need to check how they formulate their loss function
         loss = loss_function(z, logdet)
+        loss_meter.update(loss.item(), x.size(0))
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -85,13 +96,15 @@ def test(model, testloader, device, loss_function, epoch):
     loss = 0
     num_samples = 32  # should probably be an argument
     # TODO: add average loss checker here, they use that in code for checkpointing
+    loss_meter = AverageMeter('test-avg')
     for x, y in testloader:
         x = x.to(device)
         z, logdet = model(x)
         loss = loss_function(x, logdet)
+        loss_meter.update(loss.item(), x.size(0))
 
-    if avg_loss < best_loss:
-        print("saving model..")
+    if loss_meter.avg < best_loss:
+        print(f"New best model found, average loss {loss_meter.avg}")
         checkpoint_state = {
             "model": model.state_dict(),
             "test_loss": avg_loss,
@@ -100,8 +113,8 @@ def test(model, testloader, device, loss_function, epoch):
         os.makedirs("checkpoints", exist_ok=True)
         # save the model
         torch.save(checkpoint_state, "checkpoints/best.pth.tar")
-        best_loss = avg_loss
-
+        best_loss = loss_meter.avg
+    print(f"test epoch complete, result: {bits_per_dimension(x, loss.avg)}")
     # generate samples after each test (?)
     sample_images = generate(model, num_samples, device)
     os.makedirs('generated_imgs', exist_ok=True)
@@ -144,6 +157,8 @@ if __name__ == "__main__":
                         help="amount of iterations for learning rate warmup")
     parser.add_argument('--num_epochs', default=100,
                         help="number of epochs to train for")
+    parser.add_argument('--resume', default=False,
+                        help="Resume training of a saved model")
     best_loss = 9999
 
     main(parser.parse_args())
