@@ -25,7 +25,7 @@ class Glow(nn.Module):
         self.initialize_blocks(in_channels)
 
     def initialize_blocks(self, in_channels):
-        for _ in self.levels:
+        for _ in range(self.levels):
             self.blocks.append(Block(in_channels, self.depth))
             in_channels *= 2
 
@@ -34,12 +34,12 @@ class Glow(nn.Module):
         eps = []
         x = squeeze(x)
         for i, current_block in enumerate(self.blocks):
-            print(f"iter: {i}")
+            # print(f"iter: {i}")
             x, logdet = current_block(x, logdet)
-            print(f"logdet: {logdet.shape}\nx: {x.shape}")
+            # print(f"logdet: {logdet.shape}\nx: {x.shape}")
             if i < self.levels - 1:
                 x, logdet, _eps = split(x, logdet)
-                print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
+                # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
         return x, logdet, eps
 
@@ -56,7 +56,7 @@ class Block(nn.Module):
         super(Block, self).__init__()
 
         channel_after_squeeze = in_channels * 4
-        self.flows = nn.ModuleList([StepFlow(channel_after_squeeze) for _ in depth])
+        self.flows = nn.ModuleList([StepFlow(channel_after_squeeze) for _ in range(depth)])
 
     def forward(self, x, logdet=None):
         for flow in self.flows:
