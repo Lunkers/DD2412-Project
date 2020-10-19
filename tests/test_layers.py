@@ -64,39 +64,49 @@ def NLL(z, logdet, k=256):
     return negative_log_likelihood
 
 
-def get_conv_trainable_parameters(layers):
-    trainable_params = []
-    for l in layers:
-        trainable_params.append((l.weight, l.bias))
-    return trainable_params
+def dummy_loss(z, logdet):
+    return torch.sum(z) + torch.sum(logdet)
 
 
-def check_trainable_parameters(net, data, logdet=None):
-    trained = True
-    before = []
-    for param in net.parameters():
-        # param data are somehow by reference, so need to clone
-        before.append(param.data.clone())
-
-    # go 1 training step
+def train_step(data, logdet, net):
     optimizer = optim.Adam(net.parameters())
-    data.to(device)
     optimizer.zero_grad()
     z, logdet = net(data, logdet)
     loss = NLL(z, logdet)
     loss.backward()
     optimizer.step()
 
+
+def check_trainable_parameters(net, data, logdet=None, affine=False):
+    trained = True
+
+    before = []
+    for param in net.parameters():
+        # param data are somehow by reference, so need to clone
+        before.append(param.data.clone())
+        assert not (torch.all(param.eq(torch.zeros(param.shape))).item() and
+                    torch.all(param.eq(torch.ones(param.shape))).item())
+
+    if affine:
+        for d in data:
+            train_step(d, logdet, net)
+    else:
+        train_step(data, logdet, net)
+
     after = []
     for param in net.parameters():
         after.append(param.data)
 
     # expects every trainable parameter to be trained
+    number_of_not_trained = 0
+    iter = 0
     for be, af in zip(before, after):
         if torch.all(be.eq(af)).item():
+            number_of_not_trained += 1
+            print(f"iter: {iter}")
             trained = False
-            break
-
+        iter += 1
+    print(f"number_of_not_trained:{number_of_not_trained}, net_params: {len(list(net.parameters()))}")
     assert trained == True
 
 
@@ -254,14 +264,17 @@ class TestAffineCoupling:
         for param in afl.parameters():
             assert param.requires_grad
 
-    # def test_trainable_parameters_cifar(self):
-    #     check_trainable_parameters(AffineCouplingLayer(12), make_dummy_data(2, 12, 16, 16, random=True),
-    #                                make_dummy_logdet(random=True))
+    def test_trainable_parameters_cifar(self):
+        data = []
+        data.append(make_dummy_data(2, 12, 16, 16, random=True))
+        data.append(make_dummy_data(2, 12, 16, 16, random=True))
+        check_trainable_parameters(AffineCouplingLayer(12), data, make_dummy_logdet(random=True), affine=True)
 
-    # def test_trainable_parameters_mnist(self):
-    #     check_trainable_parameters(AffineCouplingLayer(2),
-    #                                data=make_dummy_data(2, 2, 28, 28, random=True),
-    #                                logdet=make_dummy_logdet(random=True))
+    def test_trainable_parameters_mnist(self):
+        data = []
+        data.append(make_dummy_data(2, 4, 14, 14, random=True))
+        data.append(make_dummy_data(2, 4, 14, 14, random=True))
+        check_trainable_parameters(AffineCouplingLayer(4), data, make_dummy_logdet(random=True), affine=True)
 
 
 """
