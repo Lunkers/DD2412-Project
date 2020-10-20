@@ -4,21 +4,41 @@ import os
 import future
 import numpy as np
 import matplotlib.pyplot as plt
+import PIL
+import shutil
+
 
 class Dataloader():
     def __init__(self):
         self.path2root = os.getcwd()
         self.path2data = os.getcwd() + "/data"
+        self.path2imageNet_val = self.path2data + "/valid_32x32"
+        self.path2imageNet_train = self.path2data + "/train_32x32"
 
-    def load_data(self, batch_size_cifar=4, batch_size_mnist=4):
+        self.filenames_train = None
+        self.filenames_val = None
 
+    def extract_data(self):
+        os.chdir(self.path2data)
+
+        if not os.path.isdir(self.path2imageNet_val):
+            unpack = [shutil.unpack_archive(filename, self.path2data)
+                      for filename in os.listdir() if filename.endswith("tar")]
+
+        self.filenames_train = os.listdir(self.path2imageNet_train)
+        self.filenames_val = os.listdir(self.path2imageNet_val)
+
+        return 0
+
+    def load_data(self, batch_size_cifar=4, batch_size_ImageNet=4):
+        """
+        Loading CIFAR10
+        """
         if not os.path.isdir(self.path2data):
             os.mkdir(self.path2data)
 
         transform_cifar = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
             degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0, 0, 0), (1, 1, 1))])
-        transform_mnist = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(0, 1)])
 
         traincifar10 = torchvision.datasets.CIFAR10(
             root=self.path2data, train=True, download=True, transform=transform_cifar)
@@ -30,17 +50,32 @@ class Dataloader():
         testloader_cifar10 = torch.utils.data.DataLoader(
             testcifar10, batch_size=batch_size_cifar, shuffle=False)
 
-        trainmnist = torchvision.datasets.MNIST(
-            self.path2data, train=True, download=True, transform=transform_mnist)
-        trainloader_mnist = torch.utils.data.DataLoader(
-            trainmnist, batch_size=batch_size_mnist, shuffle=True)
+        """
+        Loading ImageNet
+        """
+        self.extract_data()
+        transform_ImageNet = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
+            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0, 0, 0), (1, 1, 1))])
 
-        testmnist = torchvision.datasets.MNIST(
-            root=self.path2data, train=False, download=True, transform=transform_mnist)
-        testloader_mnist = torch.utils.data.DataLoader(
-            testmnist, batch_size=batch_size_mnist, shuffle=False)
+        os.chdir(self.path2imageNet_train)
+        transformed_images_train = []
+        for fileName in self.filenames_train:
+            im = PIL.Image.open(fileName)
+            transformed_images_train.append(transform_ImageNet(im))
 
-        return trainloader_cifar10, testloader_cifar10, trainloader_mnist, testloader_mnist
+        trainloader_ImageNet = torch.utils.data.DataLoader(
+            transformed_images_train, batch_size=batch_size_ImageNet)
+
+        os.chdir(self.path2imageNet_val)
+        transformed_images_val = []
+        for fileName in self.filenames_val:
+            im = PIL.Image.open(fileName)
+            transformed_images_val.append(transform_ImageNet(im))
+
+        testloader_ImageNet = torch.utils.data.DataLoader(
+            transformed_images_val, batch_size=batch_size_ImageNet)
+
+        return trainloader_cifar10, testloader_cifar10, trainloader_ImageNet, testloader_ImageNet
 
 
 def imshow(img):
@@ -52,7 +87,7 @@ def imshow(img):
 
 if __name__ == "__main__":
     DL = Dataloader()
-    train_cifar, test_cifar, train_mnist, test_mnist = DL.load_data()
+    train_cifar, test_cifar, train_ImageNet, test_ImageNet = DL.load_data()
 
     # dataiter = iter(train_cifar)
     # images, labels = dataiter.next()
@@ -62,8 +97,8 @@ if __name__ == "__main__":
     # imshow(torchvision.utils.make_grid(images))
     # print(' '.join('%5s' % classes[labels[j]] for j in range(4)))
 
-    # dataiter = iter(train_mnist)
-    # images, labels = dataiter.next()
-    # plt.imshow(images[0].reshape(28,28), cmap="gray")
-    # plt.show()
+    # dataiter = iter(test_ImageNet)
+    # images = dataiter.next()
+    # imshow(torchvision.utils.make_grid(images))
+
     # print("Number of batches with batch size 4 is: %s" % (len(dataiter)))
