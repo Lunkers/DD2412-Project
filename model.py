@@ -18,33 +18,44 @@ class Glow(nn.Module):
         self.levels = levels
         self.depth = depth
         self.blocks = nn.ModuleList()
+        self.zeroconv = nn.ModuleList()
         self.initialize_blocks(in_channels)
+        self.initalize_zeroconv(in_channels)
 
     def initialize_blocks(self, in_channels):
         for _ in range(self.levels):
             self.blocks.append(Block(in_channels, self.depth))
+            # Note that at the last iteration the in_channel will not be applied to blocks, because split is not applied
             in_channels *= 2  # because we apply a split at the end of each level iteration and split has squeeze in it as well resulting in a factor of 2
+
+    def initalize_zeroconv(self, in_channels):
+        for _ in range(self.levels-1):
+            self.zeroconv.append(ZeroConv2d(in_channels*2, in_channels*4))
+            in_channels *= 2
 
     def forward(self, x):
         logdet = 0
         eps = []
         x = squeeze(x)
         for i, current_block in enumerate(self.blocks):
-            # print(f"iter: {i}")
+            print(f"iter: {i}")
             x, logdet = current_block(x, logdet)
-            # print(f"logdet: {logdet.shape}\nx: {x.shape}")
+            print(f"logdet: {logdet.shape}\nx: {x.shape}")
             if i < self.levels - 1:
-                x, logdet, _eps = split(x, logdet)
-                # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
+                x, logdet, _eps = split(x, self.zeroconv[i], logdet)
+                print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
         return x, logdet, eps
 
     def reverse(self, x, eps=[], eps_std=None):
         logdet = 0
-        for i, current_block in enumerate(reversed(self.blocks)): # a bit more readable, but might be an unnecessary change
+        for i, current_block in enumerate(reversed(self.blocks)):
+            print(f"iter: {i}")
             if i < self.levels - 1:
                 x = split_reverse(x, eps, eps_std)
+                print(f"after split_reverse\niter: {i}\nx: {x.shape}")
             x, logdet = current_block.reverse(x, logdet)
+            print(f"logdet: {logdet.shape}\nx: {x.shape}")
 
         return x
 
@@ -53,7 +64,7 @@ class Block(nn.Module):
     def __init__(self, in_channels, depth):
         super(Block, self).__init__()
 
-        channel_after_squeeze = in_channels * 4  # because we apply a squeeze
+        channel_after_squeeze = in_channels * 4  # because we apply a squeeze at the start
         self.flows = nn.ModuleList([StepFlow(channel_after_squeeze) for _ in range(depth)])
 
     def forward(self, x, logdet=None):
@@ -62,8 +73,6 @@ class Block(nn.Module):
         return x, logdet
 
     def reverse(self, x, logdet=None):
-        # don't think logdet is relevant for reverse it seems in the original code, it's mostly ignored
-        # We should still return it though, because the reverse() method in the model expects it
         for flow in reversed(self.flows):
             x, logdet = flow.reverse(x, logdet)
         return x, logdet
@@ -114,9 +123,9 @@ def squeeze(x: torch.Tensor, factor=2, reverse=False):
     return x
 
 
-def split(x, logdet=0.):
+def split(x, zeroconv, logdet=0.):
     x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
-    gd = split_prior(x_a)
+    gd = split_prior(x_a, zeroconv)
 
     logdet += gd.logp(x_b)
     x_a = squeeze(x_a)
@@ -125,10 +134,8 @@ def split(x, logdet=0.):
     return x_a, logdet, eps
 
 
-def split_prior(x_a):
-    in_channels = x_a.shape[1]
-    out_channels = in_channels * 2
-    h = zero_conv2D(x_a, in_channels, out_channels)
+def split_prior(x_a, zeroconv):
+    h = zeroconv(x_a)
 
     mean = h[:, 0::2, :, :]
     logs = h[:, 1::2, :, :]
@@ -152,6 +159,14 @@ def split_reverse(x, eps, eps_std):
 
     return x
 
+
+class ZeroConv2d(nn.Module):
+    def __init__(self, in_channel, out_channels):
+        super(ZeroConv2d, self).__init__()
+        self.conv = nn.Conv2d(in_channel, out_channels, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        return self.conv(x)
 
 def zero_conv2D(x, in_channels, out_channels):
     zero_conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
