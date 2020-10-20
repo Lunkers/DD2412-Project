@@ -14,6 +14,7 @@ eps = 1e-2
 
 cifar_train, cifar_test, mnist_train, mnist_test = Dataloader().load_data()
 
+
 class TestGlow:
 
     def forward_and_reverse_output_shape(self, in_channel, data, levels=3, depth=4):
@@ -29,15 +30,15 @@ class TestGlow:
             iter 2 -> z: [4, 24, 8, 8] because of squeeze + split
             iter 3 -> z: [4, 48, 4, 4] because of squeeze + split
         """
-        assert list(z.shape) == [4, in_channel * 4 * 2**(levels-1), 4, 4]
+        assert list(z.shape) == [4, in_channel * 4 * 2 ** (levels - 1), 4, 4]
         assert list(logdet.shape) == [4]  # because batch_size = 4
-        assert len(eps) == levels-1  # because L = 3 and split is executed whenever < L, i.e 2 times in total
+        assert len(eps) == levels - 1  # because L = 3 and split is executed whenever < L, i.e 2 times in total
 
         factor = 1
         for e in eps:
             factor *= 2
             # example: first eps -> from iter 1 take z shape and divide channel by 2: [4, 12/2, 16, 16]
-            assert list(e.shape) == [4, in_channel*factor, height / factor, width / factor]
+            assert list(e.shape) == [4, in_channel * factor, height / factor, width / factor]
 
         """
             In total depth * levels = 4 * 3 = 12, so we got 12 instances of actnorm, inconv and affinecoupling
@@ -53,11 +54,9 @@ class TestGlow:
             assert param.requires_grad
 
         # reverse
-        # z = glow.reverse(z, eps[-1])
-        #
-        # assert list(z.shape) == [4, 12, 16, 16]
+        z = glow.reverse(z, eps)
 
-        # assert 1==2
+        assert list(z.shape) == [4, 3, 32, 32]
 
     def test_forward_and_reverse_output_shape_cifar(self):
         # extract first batch of size 4 -> [train, labels] -> [[4,3,32,32], [4]]

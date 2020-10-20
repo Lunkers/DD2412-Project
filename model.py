@@ -29,8 +29,8 @@ class Glow(nn.Module):
             in_channels *= 2  # because we apply a split at the end of each level iteration and split has squeeze in it as well resulting in a factor of 2
 
     def initalize_zeroconv(self, in_channels):
-        for _ in range(self.levels-1):
-            self.zeroconv.append(ZeroConv2d(in_channels*2, in_channels*4))
+        for _ in range(self.levels - 1):
+            self.zeroconv.append(ZeroConv2d(in_channels * 2, in_channels * 4))
             in_channels *= 2
 
     def forward(self, x):
@@ -38,25 +38,28 @@ class Glow(nn.Module):
         eps = []
         x = squeeze(x)
         for i, current_block in enumerate(self.blocks):
-            print(f"iter: {i}")
+            # print(f"iter: {i}")
             x, logdet = current_block(x, logdet)
-            print(f"logdet: {logdet.shape}\nx: {x.shape}")
+            # print(f"logdet: {logdet.shape}\nx: {x.shape}")
             if i < self.levels - 1:
                 x, logdet, _eps = split(x, self.zeroconv[i], logdet)
-                print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
+                # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
         return x, logdet, eps
 
     def reverse(self, x, eps=[], eps_std=None):
         logdet = 0
-        for i, current_block in enumerate(reversed(self.blocks)):
-            print(f"iter: {i}")
+        # reversing the elements and the indices
+        for i, current_block in reversed(list(enumerate(self.blocks))):
+            # print(f"iter: {i}")
             if i < self.levels - 1:
-                x = split_reverse(x, eps, eps_std)
-                print(f"after split_reverse\niter: {i}\nx: {x.shape}")
+                x = split_reverse(x, eps[i], eps_std, self.zeroconv[i])
+                # print(f"after split_reverse\niter: {i}\nx: {x.shape}")
             x, logdet = current_block.reverse(x, logdet)
-            print(f"logdet: {logdet.shape}\nx: {x.shape}")
+            # print(f"logdet: {logdet.shape}\nx: {x.shape}")
 
+        # unsqueeze before returning, equivalent to reversing the first squeeze before the loops in forward
+        x = squeeze(x, reverse=True)
         return x
 
 
@@ -144,9 +147,9 @@ def split_prior(x_a, zeroconv):
     return gd
 
 
-def split_reverse(x, eps, eps_std):
+def split_reverse(x, eps, eps_std, zeroconv):
     x_a = squeeze(x, reverse=True)
-    gd = split_prior(x_a)
+    gd = split_prior(x_a, zeroconv)
 
     if eps is not None:
         x_b = gd.sample2(eps)
@@ -168,10 +171,11 @@ class ZeroConv2d(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-def zero_conv2D(x, in_channels, out_channels):
-    zero_conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-    h = zero_conv(x)
-    return h
+
+# def zero_conv2D(x, in_channels, out_channels):
+#     zero_conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+#     h = zero_conv(x)
+#     return h
 
 
 def gaussian_diag(mean, logsd):
