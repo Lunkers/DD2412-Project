@@ -103,7 +103,7 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
     model.train()
     loss_meter = AverageMeter("train-avg")
     for x, y in trainloader:
-        x.to(device)
+        x = x.to(device)
         optimizer.zero_grad()
         z, logdet, eps = model(x)
         # need to check how they formulate their loss function
