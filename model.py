@@ -12,10 +12,6 @@ from invconv import InvConv
 # TODO: Original code uses same padding, but there isn't a corresponding one in pytorch, wonder if we have to take into consideration?
 
 class Glow(nn.Module):
-    # multiple design choices here
-    # one thing is whether we want to include the looping in or outside the model?
-    # we also want to save the z's and logdets that are produced in the model I guess
-
     def __init__(self, in_channels, levels, depth):
         super(Glow, self).__init__()
         # expecting shape of (batch_size, channels, height, width)
@@ -27,7 +23,7 @@ class Glow(nn.Module):
     def initialize_blocks(self, in_channels):
         for _ in range(self.levels):
             self.blocks.append(Block(in_channels, self.depth))
-            in_channels *= 2
+            in_channels *= 2  # because we apply a split at the end of each level iteration and split has squeeze in it as well resulting in a factor of 2
 
     def forward(self, x):
         logdet = 0
@@ -44,18 +40,20 @@ class Glow(nn.Module):
         return x, logdet, eps
 
     def reverse(self, x, eps=[], eps_std=None):
+        logdet = 0
         for i, current_block in enumerate(self.blocks[::-1]):
             if i < self.levels - 1:
                 x = split_reverse(x, eps, eps_std)
-            x, logdet = current_block.reverse(x, 0)
+            x, logdet = current_block.reverse(x, logdet)
 
         return x
+
 
 class Block(nn.Module):
     def __init__(self, in_channels, depth):
         super(Block, self).__init__()
 
-        channel_after_squeeze = in_channels * 4
+        channel_after_squeeze = in_channels * 4  # because we apply a squeeze
         self.flows = nn.ModuleList([StepFlow(channel_after_squeeze) for _ in range(depth)])
 
     def forward(self, x, logdet=None):
