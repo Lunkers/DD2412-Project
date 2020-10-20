@@ -44,7 +44,8 @@ def main(args):
     torch.cuda.manual_seed_all(args.seed)
 
     global best_loss
-
+    if(args.generate_samples):
+        print("generating samples")
     # load data
     # example for CIFAR-10 training:
     train_set, test_set = get_dataloader(args.dataset, args.batch_size)
@@ -84,7 +85,7 @@ def main(args):
         # how often do we want to test?
         if (epoch % 1== 0):  # revert this to 10 once we know that this works
             print(f"testing epoch {epoch}")
-            test(net, test_set, device, loss_function, epoch)
+            test(net, test_set, device, loss_function, epoch, args.generate_samples)
 
 
 @torch.enable_grad()
@@ -101,9 +102,7 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
     global glbl_step
     model.train()
     loss_meter = AverageMeter("train-avg")
-    iter_ctr = 0
     for x, y in trainloader:
-        iter_ctr += 1
         x.to(device)
         optimizer.zero_grad()
         z, logdet, eps = model(x)
@@ -114,23 +113,17 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         optimizer.step()
         scheduler.step(glbl_step)
         glbl_step += x.size(0)
-        if(iter_ctr % 10 == 0):
-            print(iter_ctr)
 
 
 @torch.no_grad()
-def test(model, testloader, device, loss_function, epoch):
+def test(model, testloader, device, loss_function, epoch, generate_imgs):
     global best_loss  # keep track of best loss
     model.eval()
     loss = 0
-    test_iter = 0
     num_samples = 32  # should probably be an argument
     # TODO: add average loss checker here, they use that in code for checkpointing
     loss_meter = AverageMeter('test-avg')
     for x, y in testloader:
-        if(test_iter % 10 == 0):
-            print(test_iter)
-        test_iter += 1
         x = x.to(device)
         z, logdet, _ = model(x)
         loss = loss_function(x, logdet)
@@ -149,10 +142,11 @@ def test(model, testloader, device, loss_function, epoch):
         best_loss = loss_meter.avg
     print(f"test epoch complete, result: {bits_per_dimension(x, loss_meter.avg)}")
     # generate samples after each test (?)
-    sample_images = generate(model, num_samples, device)
-    os.makedirs('generated_imgs', exist_ok=True)
-    grid = torchvision.utils.make_grid(sample_images, nrow=num_samples ** 0.5)
-    torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}")
+    if(generate_imgs):
+        sample_images = generate(model, num_samples, device)
+        os.makedirs('generated_imgs', exist_ok=True)
+        grid = torchvision.utils.make_grid(sample_images, nrow=num_samples ** 0.5)
+        torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}")
 
 
 @torch.no_grad()
@@ -199,6 +193,7 @@ if __name__ == "__main__":
                         help="Resume training of a saved model")
     parser.add_argument('--dataset', default=DatasetEnum.CIFAR,
                         type=str, choices=[dataset.name for dataset in DatasetEnum])
+    parser.add_argument('--generate_samples', action="store_true", default=False)
 
     best_loss = 9999
     glbl_step = 0
