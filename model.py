@@ -41,7 +41,7 @@ class Glow(nn.Module):
 
     def reverse(self, x, eps=[], eps_std=None):
         logdet = 0
-        for i, current_block in enumerate(self.blocks[::-1]):
+        for i, current_block in enumerate(reversed(self.blocks)): # a bit more readable, but might be an unnecessary change 
             if i < self.levels - 1:
                 x = split_reverse(x, eps, eps_std)
             x, logdet = current_block.reverse(x, logdet)
@@ -63,9 +63,10 @@ class Block(nn.Module):
 
     def reverse(self, x, logdet=None):
         # don't think logdet is relevant for reverse it seems in the original code, it's mostly ignored
-        for flow in self.flows[::-1]:
+        # We should still return it though, because the reverse() method in the model expects it
+        for flow in reversed(self.flows):
             x, logdet = flow.reverse(x, logdet)
-        return x
+        return x, logdet
 
 
 class StepFlow(nn.Module):
