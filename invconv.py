@@ -22,7 +22,7 @@ class InvConv(nn.Module):
         w_init = np.random.randn(num_channels, num_channels)
 
         # use numpy and scipy for linalg operations
-        q, _ linalg.qr(w_init)  # we only want the orthongonal matrix
+        q, _ = linalg.qr(w_init)  # we only want the orthongonal matrix
         P, L, U = linalg.lu(q.astype(np.float32))
         s = np.diag(U)
         U = np.triu(U, 1)  # we want an upper triangular matrix
@@ -53,7 +53,7 @@ class InvConv(nn.Module):
         height, width = shape[2], shape[3]
         weight = self.calculate_weight()
         dlogdet = torch.sum(self.s) * width * height #eq. 11
-        y = F.conv2d(x, w.unsqueeze(2).unsqueeze(3))
+        y = F.conv2d(x, weight.unsqueeze(2).unsqueeze(3))
         return y, logdet + dlogdet
 
     def reverse(self, y, logdet):
