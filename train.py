@@ -99,9 +99,10 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         optimizer
         loss_function
     """
-    global glbl_step
+    # global glbl_step
     model.train()
     loss_meter = AverageMeter("train-avg")
+    train_iter = 0
     for x, y in trainloader:
         x = x.to(device)
         optimizer.zero_grad()
@@ -111,13 +112,15 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         loss_meter.update(loss.item(), x.size(0))
         loss.backward()
         optimizer.step()
-        scheduler.step(glbl_step)
-        glbl_step += x.size(0)
+        scheduler.step()
+        print(train_iter, end="\r")
+        train_iter += 1
+        # glbl_step += x.size(0)
 
 
 @torch.no_grad()
 def test(model, testloader, device, loss_function, epoch, generate_imgs):
-    global best_loss  # keep track of best loss
+    #global best_loss  # keep track of best loss
     model.eval()
     loss = 0
     num_samples = 32  # should probably be an argument
@@ -129,18 +132,18 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
         loss = loss_function(x, logdet)
         loss_meter.update(loss.item(), x.size(0))
 
-    if loss_meter.avg < best_loss:
-        print(f"New best model found, average loss {loss_meter.avg}")
-        checkpoint_state = {
-            "model": model.state_dict(),
-            "test_loss": loss_meter.avg,
-            "epoch": epoch
-        }
-        os.makedirs("checkpoints", exist_ok=True)
-        # save the model
-        torch.save(checkpoint_state, "checkpoints/best.pth.tar")
-        best_loss = loss_meter.avg
-    print(f"test epoch complete, result: {bits_per_dimension(x, loss_meter.avg)}")
+    # if loss_meter.avg < best_loss:
+    #     print(f"New best model found, average loss {loss_meter.avg}")
+    #     checkpoint_state = {
+    #         "model": model.state_dict(),
+    #         "test_loss": loss_meter.avg,
+    #         "epoch": epoch
+    #     }
+    #     os.makedirs("checkpoints", exist_ok=True)
+    #     # save the model
+    #     torch.save(checkpoint_state, "checkpoints/best.pth.tar")
+    #     best_loss = loss_meter.avg
+    print(f"test epoch complete, result: {bits_per_dimension(next(iter(testloader))[0], loss_meter.avg)}")
     # generate samples after each test (?)
     if(generate_imgs):
         sample_images = generate(model, num_samples, device)
@@ -159,10 +162,11 @@ def generate(model, n_samples, device, n_channels=3):
         device: the device we run the model on
         n_channels: the amount of channels for the output (usually 3, but on MNIST it's 1)
     """
-    z = torch.randn((n_samples, n_channels, 32, 32),
-                    dtype=torch.float32, device=device)
+    # z = torch.randn((n_samples, n_channels, 32, 32),
+    #                 dtype=torch.float32, device=device)
+    z = torch.randn((n_samples, n_channels, 4, 4), dtype=torch.float32, device=device)
     # not sure how you guys implemented the reverse functionality
-    x, _ = model.reverse(z)
+    x = model.reverse(z)
     return x
 
 
@@ -195,7 +199,7 @@ if __name__ == "__main__":
                         type=str, choices=[dataset.name for dataset in DatasetEnum])
     parser.add_argument('--generate_samples', action="store_true", default=False)
 
-    best_loss = 9999
+    best_loss = float('inf')
     glbl_step = 0
 
     main(parser.parse_args())

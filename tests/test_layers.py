@@ -127,7 +127,9 @@ class TestActnorm:
     def forward_shape_output(self, in_channel, data):
         actnorm = ActNorm(in_channel)
         z, logdet = actnorm(data, if_logdet=True)
+        print(logdet)
 
+        assert 1==2
         assert z.shape == data.shape  # input shape and output shape should be same
         assert len(logdet.shape) == 0  # single valued tensor
         # scale and bias parameters should only work on the channel entries of the input
@@ -313,31 +315,31 @@ def test_squeeze_shape():
 """
 
 
-def split_shape(in_channel, data):
-    batch_size, height, width = data.shape[0], data.shape[2], data.shape[3]
-    # make logdet same shape as after affine coupling: 1D tensor with same number of entries as batch size
-    dummy_logdet = torch.empty(data.shape[0]).fill_(make_dummy_logdet(random=True))
-    z, logdet, eps = model.split(data, dummy_logdet)
-
-    assert list(z.shape) == [batch_size, in_channel * 2, height / 2, width / 2]
-    assert logdet.shape == dummy_logdet.shape
-    assert list(eps.shape) == [batch_size, in_channel / 2, height, width]
-
-    # multiple paths
-    # eps != None or eps_std != None or both are None
-    eps_std = make_dummy_data(1, 1, 1, 1, random=True)  # should be 1 single value
-    z_with_eps = model.split_reverse(z, eps, None)
-    z_with_eps_std = model.split_reverse(z, None, eps_std)
-    z_without_any_eps = model.split_reverse(z, None, None)
-    assert list(z_with_eps.shape) == [batch_size, in_channel, height, width]
-    assert list(z_with_eps_std.shape) == [batch_size, in_channel, height, width]
-    assert list(z_without_any_eps.shape) == [batch_size, in_channel, height, width]
-
-
-# adjusted shape of cifar and mnist to after applying squeeze for testing robustness
-def test_split_shape_cifar():
-    split_shape(12, make_dummy_data(2, 12, 16, 16, random=True))
-
-
-def test_split_shape_mnist():
-    split_shape(4, make_dummy_data(2, 4, 14, 14, random=True))
+# def split_shape(in_channel, data):
+#     batch_size, height, width = data.shape[0], data.shape[2], data.shape[3]
+#     # make logdet same shape as after affine coupling: 1D tensor with same number of entries as batch size
+#     dummy_logdet = torch.empty(data.shape[0]).fill_(make_dummy_logdet(random=True))
+#     z, logdet, eps = model.split(data, dummy_logdet)
+#
+#     assert list(z.shape) == [batch_size, in_channel * 2, height / 2, width / 2]
+#     assert logdet.shape == dummy_logdet.shape
+#     assert list(eps.shape) == [batch_size, in_channel / 2, height, width]
+#
+#     # multiple paths
+#     # eps != None or eps_std != None or both are None
+#     eps_std = make_dummy_data(1, 1, 1, 1, random=True)  # should be 1 single value
+#     z_with_eps = model.split_reverse(z, eps, None)
+#     z_with_eps_std = model.split_reverse(z, None, eps_std)
+#     z_without_any_eps = model.split_reverse(z, None, None)
+#     assert list(z_with_eps.shape) == [batch_size, in_channel, height, width]
+#     assert list(z_with_eps_std.shape) == [batch_size, in_channel, height, width]
+#     assert list(z_without_any_eps.shape) == [batch_size, in_channel, height, width]
+#
+#
+# # adjusted shape of cifar and mnist to after applying squeeze for testing robustness
+# def test_split_shape_cifar():
+#     split_shape(12, make_dummy_data(2, 12, 16, 16, random=True))
+#
+#
+# def test_split_shape_mnist():
+#     split_shape(4, make_dummy_data(2, 4, 14, 14, random=True))

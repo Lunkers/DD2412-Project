@@ -47,8 +47,10 @@ class Glow(nn.Module):
                 eps.append(_eps)
         return x, logdet, eps
 
-    def reverse(self, x, eps=[], eps_std=None):
+    def reverse(self, x, eps=None, eps_std=None):
         logdet = 0
+        if eps is None:
+            eps = [None] * (self.levels - 1)
         # reversing the elements and the indices
         for i, current_block in reversed(list(enumerate(self.blocks))):
             # print(f"iter: {i}")
@@ -92,8 +94,11 @@ class StepFlow(nn.Module):
 
     def forward(self, x, logdet=None):
         x, logdet = self.actnorm(x, logdet)
+        # print(f'actnorm: {x}')
         x, logdet = self.inconv(x, logdet)
+        # print(f'invconv: {x}')
         x, logdet = self.affine_coupling(x, logdet)
+        # print(f'affine: {x}')
 
         return x, logdet
 

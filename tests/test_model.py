@@ -6,6 +6,8 @@ import random
 from model import Glow
 import numpy as np
 from preprocessing import Dataloader
+from train import generate, test
+from loss_utils import FlowNLL, bits_per_dimension
 
 manualSeed = 999
 random.seed(manualSeed)
@@ -45,7 +47,7 @@ class TestGlow:
             Actnorm = 2 trainable parameters
             Invconv = 1 trainable parameter
             Affinecoupling = 6 trainable parameters (got 3 conv layers, each layer has weight + bias, so for all layers combined we get 6 in total)
-            Zeroconv = 4
+            Zeroconv = 4 (2 conv layers, each with weight + bias)
             
             12 * (2+1+6) + 4= 112
         """
@@ -54,15 +56,16 @@ class TestGlow:
             assert param.requires_grad
 
         # reverse
+        # For cifar we expect z with level=3 to be of shape [4,48,4,4]
         z = glow.reverse(z, eps)
 
         assert list(z.shape) == [4, 3, 32, 32]
 
-    def test_forward_and_reverse_output_shape_cifar(self):
-        # extract first batch of size 4 -> [train, labels] -> [[4,3,32,32], [4]]
-        data = next(iter(cifar_train))
-        train_data = data[0]
-        self.forward_and_reverse_output_shape(train_data.shape[1], train_data)
+    # def test_forward_and_reverse_output_shape_cifar(self):
+    #     # extract first batch of size 4 -> [train, labels] -> [[4,3,32,32], [4]]
+    #     data = next(iter(cifar_train))
+    #     train_data = data[0]
+    #     self.forward_and_reverse_output_shape(train_data.shape[1], train_data)
 
     # def test_forward_and_reverse_output_shape_mnist(self):
     #     # extract first batch of size 4 -> [train, labels] -> [[4,1,28,28], [4]]
@@ -72,3 +75,22 @@ class TestGlow:
     #     print(list(train_data.shape))
     #     # assert 1==2
     #     self.forward_and_reverse_output_shape(train_data.shape[1], train_data)
+
+    def test_generate_sample(self):
+        in_channel_cifar = 3
+        glow = Glow(in_channel_cifar, 3, 5)
+        generate(glow, 2, 'cpu', 48)
+
+    # def train_debug(self):
+    #     in_channel_cifar = 3
+    #     device = 'cpu'
+    #     loss_function = FlowNLL().to(device)
+    #     model = Glow(in_channel_cifar, 3, 5)
+    #     test(model, cifar_test, device, loss_function, 1, False)
+
+# def main():
+#     t = TestGlow
+#     t.train_debug()
+#
+# if __name__ == '__main__':
+#     main()
