@@ -99,8 +99,8 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         optimizer
         loss_function
     """
-    global glbl_step
     model.train()
+    train_iter = 0
     loss_meter = AverageMeter("train-avg")
     for x, y in trainloader:
         x = x.to(device)
@@ -108,11 +108,13 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         z, logdet, eps = model(x)
         # need to check how they formulate their loss function
         loss = loss_function(z, logdet)
+        if(train_iter % 10 == 0):
+            print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
         loss_meter.update(loss.item(), x.size(0))
         loss.backward()
         optimizer.step()
-        scheduler.step(glbl_step)
-        glbl_step += x.size(0)
+        scheduler.step()
+        train_iter += 1
 
 
 @torch.no_grad()
