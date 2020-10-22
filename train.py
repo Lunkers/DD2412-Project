@@ -14,7 +14,7 @@ from loss_utils import FlowNLL, bits_per_dimension
 from averagemeter import AverageMeter
 from model import Glow
 from enum import Enum
-
+from torch import autograd
 
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
@@ -99,23 +99,22 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         optimizer
         loss_function
     """
-    # global glbl_step
     model.train()
-    loss_meter = AverageMeter("train-avg")
     train_iter = 0
+    loss_meter = AverageMeter("train-avg")
     for x, y in trainloader:
         x = x.to(device)
         optimizer.zero_grad()
         z, logdet, eps = model(x)
         # need to check how they formulate their loss function
         loss = loss_function(z, logdet)
+        if(train_iter % 10 == 0):
+            print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
         loss_meter.update(loss.item(), x.size(0))
         loss.backward()
         optimizer.step()
         scheduler.step()
-        print(train_iter, end="\r")
         train_iter += 1
-        # glbl_step += x.size(0)
 
 
 @torch.no_grad()
@@ -143,7 +142,8 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
     #     # save the model
     #     torch.save(checkpoint_state, "checkpoints/best.pth.tar")
     #     best_loss = loss_meter.avg
-    print(f"test epoch complete, result: {bits_per_dimension(next(iter(testloader))[0], loss_meter.avg)}")
+    x = next(iter(testloader))[0]  # extract first batch of data in order to get shape for bits_per_dimens method
+    print(f"test epoch complete, result: {bits_per_dimension(x, loss_meter.avg)}")
     # generate samples after each test (?)
     if(generate_imgs):
         sample_images = generate(model, num_samples, device)
@@ -165,7 +165,6 @@ def generate(model, n_samples, device, n_channels=3):
     # z = torch.randn((n_samples, n_channels, 32, 32),
     #                 dtype=torch.float32, device=device)
     z = torch.randn((n_samples, n_channels, 4, 4), dtype=torch.float32, device=device)
-    # not sure how you guys implemented the reverse functionality
     x = model.reverse(z)
     return x
 
@@ -202,4 +201,5 @@ if __name__ == "__main__":
     best_loss = float('inf')
     glbl_step = 0
 
+    # with autograd.detect_anomaly():
     main(parser.parse_args())

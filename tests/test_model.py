@@ -6,7 +6,7 @@ import random
 from model import Glow
 import numpy as np
 from preprocessing import Dataloader
-from train import generate, test
+from train import generate, t3st
 from loss_utils import FlowNLL, bits_per_dimension
 
 manualSeed = 999
@@ -45,13 +45,13 @@ class TestGlow:
         """
             In total depth * levels = 4 * 3 = 12, so we got 12 instances of actnorm, inconv and affinecoupling
             Actnorm = 2 trainable parameters
-            Invconv = 1 trainable parameter
+            Invconv = 3 trainable parameter
             Affinecoupling = 6 trainable parameters (got 3 conv layers, each layer has weight + bias, so for all layers combined we get 6 in total)
             Zeroconv = 4 (2 conv layers, each with weight + bias)
             
-            12 * (2+1+6) + 4= 112
+            12 * (2+3+6) + 4= 136
         """
-        assert len(list(glow.parameters())) == (levels * depth) * (2 + 1 + 6) + 4
+        assert len(list(glow.parameters())) == (levels * depth) * (2 + 3 + 6) + 4
         for param in glow.parameters():
             assert param.requires_grad
 
@@ -67,19 +67,24 @@ class TestGlow:
     #     train_data = data[0]
     #     self.forward_and_reverse_output_shape(train_data.shape[1], train_data)
 
-    # def test_forward_and_reverse_output_shape_mnist(self):
-    #     # extract first batch of size 4 -> [train, labels] -> [[4,1,28,28], [4]]
-    #     data = next(iter(mnist_train))
-    #     train_data = data[0]
-    #     print(len(list(train_data.shape)))
-    #     print(list(train_data.shape))
+    # def test_generate_sample(self):
+    #     in_channel_cifar = 3
+    #     glow = Glow(in_channel_cifar, 3, 4)
+    #     x = generate(glow, 2, 'cpu', 48)
+    #     print(x.shape)
+    #     print(x)
     #     # assert 1==2
-    #     self.forward_and_reverse_output_shape(train_data.shape[1], train_data)
 
-    def test_generate_sample(self):
+    def test_test(self):
         in_channel_cifar = 3
-        glow = Glow(in_channel_cifar, 3, 5)
-        generate(glow, 2, 'cpu', 48)
+        device = 'cpu'
+        loss_function = FlowNLL().to(device)
+        model = Glow(in_channel_cifar, 3, 5)
+        t3st(model, cifar_test, device, loss_function, 1, False)
+
+    # def test_loader(self):
+    #     print(next(iter(cifar_test))[0].shape)
+    #     assert 1==2
 
     # def train_debug(self):
     #     in_channel_cifar = 3

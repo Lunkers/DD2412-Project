@@ -23,7 +23,7 @@ class AffineCouplingLayer(nn.Module):
         else:
             h = self.NN(x_b)
             scale, shift = torch.chunk(h, 2, 1)
-            scale = torch.log(torch.sigmoid(scale + 2.))
+            scale = torch.sigmoid(scale + 2.)
             y_a = scale * x_a + shift
 
         self.scale_forward = scale
@@ -45,7 +45,7 @@ class AffineCouplingLayer(nn.Module):
         else:
             h = self.NN(y_b)
             scale, shift = torch.chunk(h, 2, 1)
-            scale = torch.log(torch.sigmoid(scale + 2.))
+            scale = torch.log(torch.sigmoid(scale))
             x_a = (y_a - shift) / scale
 
         self.scale_reverse = scale

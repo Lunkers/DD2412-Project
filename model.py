@@ -94,11 +94,8 @@ class StepFlow(nn.Module):
 
     def forward(self, x, logdet=None):
         x, logdet = self.actnorm(x, logdet)
-        # print(f'actnorm: {x}')
         x, logdet = self.inconv(x, logdet)
-        # print(f'invconv: {x}')
         x, logdet = self.affine_coupling(x, logdet)
-        # print(f'affine: {x}')
 
         return x, logdet
 
