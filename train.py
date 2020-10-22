@@ -177,7 +177,7 @@ class DatasetEnum(Enum):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DD2412 Mini-glow")
     # using CIFAR optimizations as default here
-    parser.add_argument('--batch_size', default=512,
+    parser.add_argument('--batch_size', default=64,
                         type=int, help="minibatch size")
     parser.add_argument('--lr', default=0.001, help="learning rate")
     parser.add_argument('--amt_channels', '-C', default=512,
