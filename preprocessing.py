@@ -6,9 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 transform_cifar = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-    degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0, 0, 0), (1, 1, 1))])
+    degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
 transform_mnist = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-    degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(0, 1)])
+    degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
 
 class Dataloader():
     def __init__(self):
@@ -52,7 +52,7 @@ class Dataloader():
             root=self.path2data, train=False, download=True, transform=transform_cifar)
 
         traincifar10 = torch.utils.data.Subset(traincifar10, range(subset_train_size))
-        testcifar10 = torch.utils.data.Subset(traincifar10, range(subset_test_size))
+        testcifar10 = torch.utils.data.Subset(testcifar10, range(subset_test_size))
 
         trainloader_cifar10 = torch.utils.data.DataLoader(
             traincifar10, batch_size=batch_size_cifar, shuffle=True)

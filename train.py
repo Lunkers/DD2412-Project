@@ -16,6 +16,7 @@ from model import Glow
 from enum import Enum
 from torch import autograd
 
+
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
         return 1
@@ -33,6 +34,13 @@ def get_dataloader(dataset, batch_size):
         return cifar_train, cifar_test
 
 
+def load_subsert_cifar(train_subet=1000, test_subet=100, batch_size=4):
+    dt = Dataloader()
+    # default extracts 1k train and 100 test
+    train_set, test_set = dt.load_subset_of_cifar(batch_size, train_subet, test_subet)
+    return train_set, test_set
+
+
 def main(args):
     # we're probably only be using 1 GPU, so this should be fine
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -44,12 +52,12 @@ def main(args):
     torch.cuda.manual_seed_all(args.seed)
 
     global best_loss
-    if(args.generate_samples):
+    if (args.generate_samples):
         print("generating samples")
     # load data
     # example for CIFAR-10 training:
-    train_set, test_set = get_dataloader(args.dataset, args.batch_size)
-
+    # train_set, test_set = get_dataloader(args.dataset, args.batch_size)
+    train_set = load_subsert_cifar(args.batch_size)
     input_channels = channels_from_dataset(args.dataset)
     print(f"amount of  input channels: {input_channels}")
     # instantiate model
@@ -83,9 +91,9 @@ def main(args):
         print(f"training epoch {epoch}")
         train(net, train_set, device, optimizer, loss_function, scheduler)
         # how often do we want to test?
-        if (epoch % 1== 0):  # revert this to 10 once we know that this works
-            print(f"testing epoch {epoch}")
-            test(net, test_set, device, loss_function, epoch, args.generate_samples)
+        # if (epoch % 1== 0):  # revert this to 10 once we know that this works
+        #     print(f"testing epoch {epoch}")
+        #     test(net, test_set, device, loss_function, epoch, args.generate_samples)
 
 
 @torch.enable_grad()
@@ -108,7 +116,7 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         z, logdet, eps = model(x)
         # need to check how they formulate their loss function
         loss = loss_function(z, logdet)
-        if(train_iter % 10 == 0):
+        if (train_iter % 10 == 0):
             print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
         loss_meter.update(loss.item(), x.size(0))
         loss.backward()
@@ -119,7 +127,7 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
 
 @torch.no_grad()
 def test(model, testloader, device, loss_function, epoch, generate_imgs):
-    #global best_loss  # keep track of best loss
+    # global best_loss  # keep track of best loss
     model.eval()
     loss = 0
     num_samples = 32  # should probably be an argument
@@ -145,7 +153,7 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
     x = next(iter(testloader))[0]  # extract first batch of data in order to get shape for bits_per_dimens method
     print(f"test epoch complete, result: {bits_per_dimension(x, loss_meter.avg)}")
     # generate samples after each test (?)
-    if(generate_imgs):
+    if (generate_imgs):
         sample_images = generate(model, num_samples, device)
         os.makedirs('generated_imgs', exist_ok=True)
         grid = torchvision.utils.make_grid(sample_images, nrow=num_samples ** 0.5)
