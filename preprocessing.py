@@ -16,9 +16,9 @@ class Dataloader():
             os.mkdir(self.path2data)
 
         transform_cifar = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0, 0, 0), (1, 1, 1))])
+            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
         transform_mnist = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(0, 1)])
+            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
 
         traincifar10 = torchvision.datasets.CIFAR10(
             root=self.path2data, train=True, download=True, transform=transform_cifar)

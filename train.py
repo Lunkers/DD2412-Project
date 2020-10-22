@@ -119,7 +119,7 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
 
 @torch.no_grad()
 def test(model, testloader, device, loss_function, epoch, generate_imgs):
-    #global best_loss  # keep track of best loss
+    global best_loss  # keep track of best loss
     model.eval()
     loss = 0
     num_samples = 32  # should probably be an argument
@@ -131,17 +131,17 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
         loss = loss_function(x, logdet)
         loss_meter.update(loss.item(), x.size(0))
 
-    # if loss_meter.avg < best_loss:
-    #     print(f"New best model found, average loss {loss_meter.avg}")
-    #     checkpoint_state = {
-    #         "model": model.state_dict(),
-    #         "test_loss": loss_meter.avg,
-    #         "epoch": epoch
-    #     }
-    #     os.makedirs("checkpoints", exist_ok=True)
-    #     # save the model
-    #     torch.save(checkpoint_state, "checkpoints/best.pth.tar")
-    #     best_loss = loss_meter.avg
+    if loss_meter.avg < best_loss:
+        print(f"New best model found, average loss {loss_meter.avg}")
+        checkpoint_state = {
+            "model": model.state_dict(),
+            "test_loss": loss_meter.avg,
+            "epoch": epoch
+        }
+        os.makedirs("checkpoints", exist_ok=True)
+        # save the model
+        torch.save(checkpoint_state, "checkpoints/best.pth.tar")
+        best_loss = loss_meter.avg
     x = next(iter(testloader))[0]  # extract first batch of data in order to get shape for bits_per_dimens method
     print(f"test epoch complete, result: {bits_per_dimension(x, loss_meter.avg)}")
     # generate samples after each test (?)
