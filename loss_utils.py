@@ -43,6 +43,6 @@ def bits_per_dimension(x, negative_log_likelihood):
         negative_log_likelihood: negative log-likelihood loss tensor
     """
     dimensions = np.prod(x.size()[1:])
-    bpd = negative_log_likelihood / np.log(2 * dimensions)
+    bpd = -negative_log_likelihood / (np.log(2) * dimensions)
 
     return bpd 
