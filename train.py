@@ -131,8 +131,8 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
     loss_meter = AverageMeter('test-avg')
     for x, y in testloader:
         x = x.to(device)
-        z, logdet, _ = model(x)
-        loss = loss_function(x, logdet)
+        z, logdet, _, logp = model(x)
+        loss = loss_function(logp, logdet, x.size())
         loss_meter.update(loss.item(), x.size(0))
 
     if loss_meter.avg < best_loss:
