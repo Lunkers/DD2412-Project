@@ -39,13 +39,15 @@ class Glow(nn.Module):
         x = squeeze(x)
         logp_sum = 0
         for i, current_block in enumerate(self.blocks):
-            # print(f"iter: {i}")
             x, logdet = current_block(x, logdet)
             # print(f"logdet: {logdet.shape}\nx: {x.shape}")
-            if i < self.levels - 1:
+            if i < self.levels - 2: #last block shouldnt split
                 x, logdet, _eps, logp = split(x, self.zeroconv[i], logdet)
                 # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
+                logp_sum += logp
+            else:
+                x, logdet, _eps, logp = split(x, self.zeroconv[i], logdet)
                 logp_sum += logp
         return x, logdet, eps, logp_sum
 
@@ -59,6 +61,7 @@ class Glow(nn.Module):
             if i < self.levels - 1:
                 x = split_reverse(x, eps[i], eps_std, self.zeroconv[i])
                 # print(f"after split_reverse\niter: {i}\nx: {x.shape}")
+            
             x, logdet = current_block.reverse(x, logdet)
             # print(f"logdet: {logdet.shape}\nx: {x.shape}")
 
@@ -134,7 +137,7 @@ def split(x, zeroconv, logdet=0.):
     x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
     gd = split_prior(x_a, zeroconv)
 
-    logdet += gd.logp(x_b)
+    #logdet += gd.logp(x_b)
     x_a = squeeze(x_a)
     eps = gd.get_eps(x_b)
 
