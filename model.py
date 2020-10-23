@@ -37,15 +37,17 @@ class Glow(nn.Module):
         logdet = 0
         eps = []
         x = squeeze(x)
+        logp_sum = 0
         for i, current_block in enumerate(self.blocks):
             # print(f"iter: {i}")
             x, logdet = current_block(x, logdet)
             # print(f"logdet: {logdet.shape}\nx: {x.shape}")
             if i < self.levels - 1:
-                x, logdet, _eps = split(x, self.zeroconv[i], logdet)
+                x, logdet, _eps, logp = split(x, self.zeroconv[i], logdet)
                 # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
-        return x, logdet, eps
+                logp_sum += logp
+        return x, logdet, eps, logp_sum
 
     def reverse(self, x, eps=None, eps_std=None):
         logdet = 0
@@ -136,7 +138,7 @@ def split(x, zeroconv, logdet=0.):
     x_a = squeeze(x_a)
     eps = gd.get_eps(x_b)
 
-    return x_a, logdet, eps
+    return x_a, logdet, eps, gd.logp(x_b)
 
 
 def split_prior(x_a, zeroconv):
@@ -169,6 +171,8 @@ class ZeroConv2d(nn.Module):
     def __init__(self, in_channel, out_channels):
         super(ZeroConv2d, self).__init__()
         self.conv = nn.Conv2d(in_channel, out_channels, kernel_size=3, padding=1)
+        torch.nn.init.zeros_(self.conv.weight)
+        torch.nn.init.zeros_(self.conv.bias)
 
     def forward(self, x):
         return self.conv(x)

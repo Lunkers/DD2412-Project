@@ -59,6 +59,8 @@ def main(args):
 
     net = net.to(device)
 
+    print(f"training for {args.num_epochs} epochs.")
+
     start_epoch = 0
     # TODO: add functionality for loading checkpoints here
     if args.resume:
@@ -105,9 +107,11 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
     for x, y in trainloader:
         x = x.to(device)
         optimizer.zero_grad()
-        z, logdet, eps = model(x)
+        z, logdet, eps, logp = model(x)
+        # print(eps)
+        # print(logdet.size())
         # need to check how they formulate their loss function
-        loss = loss_function(z, logdet)
+        loss = loss_function(logp, logdet, x.size())
         if(train_iter % 10 == 0):
             print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
         loss_meter.update(loss.item(), x.size(0))
