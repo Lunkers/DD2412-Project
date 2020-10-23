@@ -29,7 +29,7 @@ class Glow(nn.Module):
             in_channels *= 2  # because we apply a split at the end of each level iteration and split has squeeze in it as well resulting in a factor of 2
 
     def initalize_zeroconv(self, in_channels):
-        for _ in range(self.levels - 1):
+        for _ in range(self.levels ):
             self.zeroconv.append(ZeroConv2d(in_channels * 2, in_channels * 4))
             in_channels *= 2
 
