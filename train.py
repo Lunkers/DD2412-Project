@@ -83,7 +83,7 @@ def main(args):
         print(f"training epoch {epoch}")
         train(net, train_set, device, optimizer, loss_function, scheduler)
         # how often do we want to test?
-        if (epoch % 1== 0):  # revert this to 10 once we know that this works
+        if (epoch % 10 == 0):  # revert this to 10 once we know that this works
             print(f"testing epoch {epoch}")
             test(net, test_set, device, loss_function, epoch, args.generate_samples)
 
