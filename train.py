@@ -147,7 +147,7 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
         torch.save(checkpoint_state, "checkpoints/best.pth.tar")
         best_loss = loss_meter.avg
     x = next(iter(testloader))[0]  # extract first batch of data in order to get shape for bits_per_dimens method
-    print(f"test epoch complete, result: {bits_per_dimension(x, loss_meter.avg)}")
+    print(f"test epoch complete, result: {loss_meter.avg} bits/dim")
     # generate samples after each test (?)
     if(generate_imgs):
         sample_images = generate(model, num_samples, device)
