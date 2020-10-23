@@ -70,9 +70,9 @@ class ActNorm(nn.Module):
 
         if if_logdet:
             # the original does this in separate helper functions, we don't need that IMO
-            return self.scale * x + self.bias, log_det
+            return self.scale * (x + self.bias), log_det
         else:
-            return self.scale * x + self.bias
+            return self.scale * (x + self.bias)
 
     def get_shape(self, shape):
         if len(shape) == 2:
@@ -93,7 +93,7 @@ class ActNorm(nn.Module):
 
     def reverse(self, output, input_logdet=None):
         height, width = self.get_shape(output.shape)
-        output = (output - self.bias) / self.scale
+        output = output - self.bias / self.scale
 
         if input_logdet != None:
             input_logdet = input_logdet - self.calc_logdet(height, width)

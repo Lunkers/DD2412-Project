@@ -36,6 +36,7 @@ class Glow(nn.Module):
     def forward(self, x):
         logdet = 0
         eps = []
+        x = x + torch.FloatTensor(x.size()).uniform_(0, 1 / 256)
         x = squeeze(x)
         logp_sum = 0
         for i, current_block in enumerate(self.blocks):
