@@ -58,7 +58,6 @@ class ActNorm(nn.Module):
 
         # initialize on first item in buffer
         if self.initialized.item() == 0:
-            print("Initializing actnorm")
             self.initialize(x)
 
         log_det = self.calc_logdet(height, width)
