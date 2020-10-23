@@ -29,7 +29,7 @@ class Glow(nn.Module):
             in_channels *= 2  # because we apply a split at the end of each level iteration and split has squeeze in it as well resulting in a factor of 2
 
     def initalize_zeroconv(self, in_channels):
-        for _ in range(self.levels ):
+        for _ in range(self.levels - 1):
             self.zeroconv.append(ZeroConv2d(in_channels * 2, in_channels * 4))
             in_channels *= 2
 
@@ -41,14 +41,12 @@ class Glow(nn.Module):
         for i, current_block in enumerate(self.blocks):
             x, logdet = current_block(x, logdet)
             # print(f"logdet: {logdet.shape}\nx: {x.shape}")
-            if i < self.levels - 2: #last block shouldnt split
+            if i < self.levels - 1: #last block shouldnt split
                 x, logdet, _eps, logp = split(x, self.zeroconv[i], logdet)
                 # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
                 logp_sum += logp
-            else:
-                x, logdet, _eps, logp = split(x, self.zeroconv[i], logdet)
-                logp_sum += logp
+
         return x, logdet, eps, logp_sum
 
     def reverse(self, x, eps=None, eps_std=None):
