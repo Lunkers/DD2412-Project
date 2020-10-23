@@ -6,7 +6,7 @@ from nn import NN as NN_func
 class AffineCouplingLayer(nn.Module):
     def __init__(self, in_channels, out_channels=512, additive_coupling=False):
         super(AffineCouplingLayer, self).__init__()
-        self.NN = NN_func(in_channels, out_channels, use_actnorm="")
+        self.NN = NN_func(in_channels, out_channels, use_normalization="")
 
         self.scale_forward = torch.zeros(1)
         self.scale_reverse = torch.zeros(1)
