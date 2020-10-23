@@ -20,6 +20,7 @@ class Dataloader():
         if not os.path.isdir(self.path2data):
             os.mkdir(self.path2data)
 
+
         traincifar10 = torchvision.datasets.CIFAR10(
             root=self.path2data, train=True, download=True, transform=transform_cifar)
         trainloader_cifar10 = torch.utils.data.DataLoader(

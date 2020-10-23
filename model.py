@@ -4,7 +4,7 @@ import numpy as np
 from affinecoupling import AffineCouplingLayer
 from actnorm import ActNorm
 from invconv import InvConv
-
+from zeroconv import ZeroConv2d
 
 # TODO: Make sure dimens are correct through the operations
 # TODO: Check that it trains correctly and optimizes the right parameters (make sure nn.ModuleList works correctly)
@@ -30,7 +30,7 @@ class Glow(nn.Module):
 
     def initalize_zeroconv(self, in_channels):
         for _ in range(self.levels - 1):
-            self.zeroconv.append(ZeroConv2d(in_channels * 2, in_channels * 4))
+            self.zeroconv.append(ZeroConv2d(in_channels * 2, in_channels * 4, padding=1))
             in_channels *= 2
 
     def forward(self, x):
@@ -163,21 +163,6 @@ def split_reverse(x, eps, eps_std, zeroconv):
     x = torch.cat((x_a, x_b), dim=1)
 
     return x
-
-
-class ZeroConv2d(nn.Module):
-    def __init__(self, in_channel, out_channels):
-        super(ZeroConv2d, self).__init__()
-        self.conv = nn.Conv2d(in_channel, out_channels, kernel_size=3, padding=1)
-
-    def forward(self, x):
-        return self.conv(x)
-
-
-# def zero_conv2D(x, in_channels, out_channels):
-#     zero_conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-#     h = zero_conv(x)
-#     return h
 
 
 def gaussian_diag(mean, logsd):

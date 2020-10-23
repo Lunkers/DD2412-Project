@@ -6,25 +6,26 @@ from nn import NN as NN_func
 class AffineCouplingLayer(nn.Module):
     def __init__(self, in_channels, out_channels=512, additive_coupling=False):
         super(AffineCouplingLayer, self).__init__()
-        self.NN = NN_func(in_channels, out_channels)
+        self.NN = NN_func(in_channels, out_channels, use_actnorm=False)
 
         self.scale_forward = torch.zeros(1)
         self.scale_reverse = torch.zeros(1)
+        #self.scale = nn.Parameter(torch.ones(in_channels // 2, 1, 1))
 
         self.additive_coupling = additive_coupling
 
     def forward(self, x, input_logdet):
         # assuming shape is (batch_size, channels, height, width)
-        x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
+        x_a, x_b = x.chunk(2, dim=1)
 
         if self.additive_coupling:
             scale = 1
             y_a = x_a + self.NN(x_b)  # there is no scale when using additive coupling, only shift hence the adding
         else:
             h = self.NN(x_b)
-            scale, shift = torch.chunk(h, 2, 1)
-            scale = torch.sigmoid(scale + 2.)
-            y_a = scale * x_a + shift
+            scale, shift = h[:, 0::2, ...], h[:, 1::2, ...]
+            scale = torch.sigmoid(scale + 2.) #* self.scale
+            y_a = scale * (x_a + shift)
 
         self.scale_forward = scale
         y_b = x_b
@@ -45,7 +46,7 @@ class AffineCouplingLayer(nn.Module):
         else:
             h = self.NN(y_b)
             scale, shift = torch.chunk(h, 2, 1)
-            scale = torch.log(torch.sigmoid(scale))
+            scale = torch.sigmoid(scale + 2.)
             x_a = (y_a - shift) / scale
 
         self.scale_reverse = scale

@@ -16,7 +16,6 @@ from model import Glow
 from enum import Enum
 from torch import autograd
 
-
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
         return 1
@@ -52,12 +51,12 @@ def main(args):
     torch.cuda.manual_seed_all(args.seed)
 
     global best_loss
-    if (args.generate_samples):
+    if(args.generate_samples):
         print("generating samples")
     # load data
     # example for CIFAR-10 training:
-    # train_set, test_set = get_dataloader(args.dataset, args.batch_size)
-    train_set = load_subsert_cifar(args.batch_size)
+    train_set, test_set = get_dataloader(args.dataset, args.batch_size)
+    #train_set = load_subsert_cifar(args.batch_size)
     input_channels = channels_from_dataset(args.dataset)
     print(f"amount of  input channels: {input_channels}")
     # instantiate model
@@ -91,9 +90,9 @@ def main(args):
         print(f"training epoch {epoch}")
         train(net, train_set, device, optimizer, loss_function, scheduler)
         # how often do we want to test?
-        # if (epoch % 1== 0):  # revert this to 10 once we know that this works
-        #     print(f"testing epoch {epoch}")
-        #     test(net, test_set, device, loss_function, epoch, args.generate_samples)
+        if (epoch % 1 == 0):  # revert this to 10 once we know that this works
+            print(f"testing epoch {epoch}")
+            test(net, test_set, device, loss_function, epoch, args.generate_samples)
 
 
 @torch.enable_grad()
@@ -116,7 +115,7 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
         z, logdet, eps = model(x)
         # need to check how they formulate their loss function
         loss = loss_function(z, logdet)
-        if (train_iter % 10 == 0):
+        if(train_iter % 10 == 0):
             print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
         loss_meter.update(loss.item(), x.size(0))
         loss.backward()
@@ -127,7 +126,7 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
 
 @torch.no_grad()
 def test(model, testloader, device, loss_function, epoch, generate_imgs):
-    # global best_loss  # keep track of best loss
+    global best_loss  # keep track of best loss
     model.eval()
     loss = 0
     num_samples = 32  # should probably be an argument
@@ -139,21 +138,21 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
         loss = loss_function(x, logdet)
         loss_meter.update(loss.item(), x.size(0))
 
-    # if loss_meter.avg < best_loss:
-    #     print(f"New best model found, average loss {loss_meter.avg}")
-    #     checkpoint_state = {
-    #         "model": model.state_dict(),
-    #         "test_loss": loss_meter.avg,
-    #         "epoch": epoch
-    #     }
-    #     os.makedirs("checkpoints", exist_ok=True)
-    #     # save the model
-    #     torch.save(checkpoint_state, "checkpoints/best.pth.tar")
-    #     best_loss = loss_meter.avg
+    if loss_meter.avg < best_loss:
+        print(f"New best model found, average loss {loss_meter.avg}")
+        checkpoint_state = {
+            "model": model.state_dict(),
+            "test_loss": loss_meter.avg,
+            "epoch": epoch
+        }
+        os.makedirs("checkpoints", exist_ok=True)
+        # save the model
+        torch.save(checkpoint_state, "checkpoints/best.pth.tar")
+        best_loss = loss_meter.avg
     x = next(iter(testloader))[0]  # extract first batch of data in order to get shape for bits_per_dimens method
     print(f"test epoch complete, result: {bits_per_dimension(x, loss_meter.avg)}")
     # generate samples after each test (?)
-    if (generate_imgs):
+    if(generate_imgs):
         sample_images = generate(model, num_samples, device)
         os.makedirs('generated_imgs', exist_ok=True)
         grid = torchvision.utils.make_grid(sample_images, nrow=num_samples ** 0.5)
@@ -185,7 +184,7 @@ class DatasetEnum(Enum):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DD2412 Mini-glow")
     # using CIFAR optimizations as default here
-    parser.add_argument('--batch_size', default=512,
+    parser.add_argument('--batch_size', default=64,
                         type=int, help="minibatch size")
     parser.add_argument('--lr', default=0.001, help="learning rate")
     parser.add_argument('--amt_channels', '-C', default=512,
