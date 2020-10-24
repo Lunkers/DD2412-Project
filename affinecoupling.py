@@ -32,26 +32,26 @@ class AffineCouplingLayer(nn.Module):
 
         return y, logdet
 
-    def reverse(self, y, input_logdet):
+    def reverse(self, y):
         # assuming shape is (batch_size, channels, height, width)
-        y_a, y_b = torch.split(y, y.shape[1] // 2, 1)
+        y_a, y_b = y.chunk(2, 1)
 
         if self.additive_coupling:
             scale = 1
             x_a = y_a + self.NN(y_b)
         else:
-            h = self.NN(y_b)
+            h = self.NN(y_a)
             scale, shift = torch.chunk(h, 2, 1)
             scale = torch.sigmoid(scale + 2.)
-            x_a = (y_a - shift) / scale
+            x_b = (y_b - shift) / scale  # however in ros they do y_b / scale first and then subtract shift
 
-        x_b = y_b
-        x = torch.cat((x_a, x_b), dim=1)  # if channel is in the second dimension
+        x_a = y_a
+        x = torch.cat([x_a, x_b], dim=1)  # if channel is in the second dimension
 
-        logdet = self.calc_logdet(scale)
-        input_logdet = input_logdet - logdet
+        # logdet = self.calc_logdet(scale)
+        # input_logdet = input_logdet - logdet
 
-        return x, input_logdet
+        return x
 
     # use logds only after forward or reverse has been calculated
     def calc_logdet(self, scale):

@@ -6,7 +6,7 @@ import random
 from model import Glow
 import numpy as np
 from preprocessing import Dataloader
-from train import generate, t3st
+from train import generate
 from loss_utils import FlowNLL, bits_per_dimension
 
 manualSeed = 999
@@ -67,20 +67,20 @@ class TestGlow:
     #     train_data = data[0]
     #     self.forward_and_reverse_output_shape(train_data.shape[1], train_data)
 
-    # def test_generate_sample(self):
-    #     in_channel_cifar = 3
-    #     glow = Glow(in_channel_cifar, 3, 4)
-    #     x = generate(glow, 2, 'cpu', 48)
-    #     print(x.shape)
-    #     print(x)
-    #     # assert 1==2
-
-    def test_test(self):
+    def test_generate_sample(self):
         in_channel_cifar = 3
-        device = 'cpu'
-        loss_function = FlowNLL().to(device)
-        model = Glow(in_channel_cifar, 3, 5)
-        t3st(model, cifar_test, device, loss_function, 1, False)
+        glow = Glow(in_channel_cifar, 3, 4)
+        x = generate(glow, 2, 'cpu', 48)
+        print(x.shape)
+        print(x)
+        # assert 1==2
+
+    # def test_test(self):
+    #     in_channel_cifar = 3
+    #     device = 'cpu'
+    #     loss_function = FlowNLL().to(device)
+    #     model = Glow(in_channel_cifar, 3, 5)
+    #     t3st(model, cifar_test, device, loss_function, 1, False)
 
     # def test_loader(self):
     #     print(next(iter(cifar_test))[0].shape)

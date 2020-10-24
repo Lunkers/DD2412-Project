@@ -85,6 +85,13 @@ class ActNorm(nn.Module):
 
         return log_det
 
+    def reverse(self, output):
+        # height, width = self.get_shape(output.shape)
+        output = (output - self.bias) / self.scale
+
+        # logdet = self.calc_logdet(height, width)
+        return output
+
     # def __init__(self, in_channel, logdet=True):
     #     super().__init__()
     #
@@ -134,11 +141,3 @@ class ActNorm(nn.Module):
     #     else:
     #         return self.scale * (input + self.loc)
     #
-    # def reverse(self, output, input_logdet=None):
-    #     height, width = self.get_shape(output.shape)
-    #     output = (output - self.bias) / self.scale
-    #
-    #     if input_logdet != None:
-    #         input_logdet = input_logdet - self.calc_logdet(height, width)
-    #         return output, input_logdet
-    #     return output

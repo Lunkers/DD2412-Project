@@ -57,13 +57,13 @@ class InvConv(nn.Module):
         y = F.conv2d(x, weight.unsqueeze(2).unsqueeze(3))
         return y, dlogdet
 
-    def reverse(self, y, logdet):
+    def reverse(self, y):
         shape = y.size()
         height, width = shape[2], shape[3]
         weight = self.calculate_weight()
-        dlogdet =  torch.sum(self.s) * width * height
+        #dlogdet =  torch.sum(self.s) * width * height
         x = F.conv2d(y, weight.inverse().unsqueeze(2).unsqueeze(3))
-        return x, logdet - dlogdet
+        return x
 
     def calculate_weight(self):
         """

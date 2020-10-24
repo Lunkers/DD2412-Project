@@ -45,22 +45,21 @@ class Glow(nn.Module):
             x = squeeze(x)
             x, logds = current_block(x)
             logdet = logdet + logds
-            # print(f"logdet: {logdet.shape}\nx: {x.shape}")
-            if i < self.levels - 1: #last block shouldnt split
+            if i < self.levels - 1:  # last block shouldnt split
                 x, _eps, logp = split(x, self.zeroconv[i])
-                # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
             elif i == len(self.blocks) - 1:  # perform this at last iteration
                 zero = torch.zeros_like(x)
                 mean, log_sd = self.zeroconv[i](zero).chunk(2, 1)
                 logp = gaussian_log_p(x, mean, log_sd)
                 logp = logp.sum(dim=[1, 2, 3])
+                eps.append(x)
             logp_sum += logp
 
         return x, logdet, eps, logp_sum
 
     def reverse(self, x, eps=None, eps_std=None):
-        logdet = 0
+        # logdet = 0
         if eps is None:
             eps = [None] * (self.levels - 1)
         # reversing the elements and the indices
@@ -69,9 +68,12 @@ class Glow(nn.Module):
             if i < self.levels - 1:
                 x = split_reverse(x, eps[i], eps_std, self.zeroconv[i])
                 # print(f"after split_reverse\niter: {i}\nx: {x.shape}")
-            
-            x, logdet = current_block.reverse(x, logdet)
-            # print(f"logdet: {logdet.shape}\nx: {x.shape}")
+            elif i == self.levels - 1:
+                zero = torch.zeros_like(x)
+                mean, log_sd = self.zeroconv[i](zero).chunk(2, 1)
+                x = sample(mean, log_sd)  # rosalinty does this differently, requiring eps values even when sampling
+
+            x = current_block.reverse(x)
 
         # unsqueeze before returning, equivalent to reversing the first squeeze before the loops in forward
         x = squeeze(x, reverse=True)
@@ -92,10 +94,10 @@ class Block(nn.Module):
             logdet = logdet + logds
         return x, logdet
 
-    def reverse(self, x, logdet=None):
+    def reverse(self, x):
         for flow in reversed(self.flows):
-            x, logdet = flow.reverse(x, logdet)
-        return x, logdet
+            x = flow.reverse(x)
+        return x
 
 def gaussian_log_p(x, mean, log_sd):
     return -0.5 * log(2 * pi) - log_sd - 0.5 * (x - mean) ** 2 / torch.exp(2 * log_sd)
@@ -103,6 +105,12 @@ def gaussian_log_p(x, mean, log_sd):
 
 def gaussian_sample(eps, mean, log_sd):
     return mean + torch.exp(log_sd) * eps
+
+def normalize_data(x, mean, logsd):
+    return (x - mean) / torch.exp(logsd)
+
+def sample(mean, logsd):
+    return mean + torch.exp(logsd) * torch.normal(mean)
 
 class StepFlow(nn.Module):
     def __init__(self, in_channels):
@@ -120,12 +128,12 @@ class StepFlow(nn.Module):
 
         return x, logdet1 + logdet2 + logdet3
 
-    def reverse(self, x, logdet=None):
-        x, logdet = self.affine_coupling.reverse(x, logdet)
-        x, logdet = self.inconv.reverse(x, logdet)
-        x, logdet = self.actnorm.reverse(x, logdet)
+    def reverse(self, x):
+        x = self.affine_coupling.reverse(x)
+        x = self.inconv.reverse(x)
+        x = self.actnorm.reverse(x)
 
-        return x, logdet
+        return x
 
 
 def squeeze(x: torch.Tensor, factor=2, reverse=False):
@@ -154,8 +162,8 @@ def split(x, zeroconv):
     x_a, x_b = x.chunk(2, 1)
     gd = split_prior(x_a, zeroconv)
 
-    #logdet += gd.logp(x_b)
     eps = gd.get_eps(x_b)
+    #eps = x_b  # rosalinty does not normalize it
 
     return x_a, eps, gd.logp(x_b)
 
