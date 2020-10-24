@@ -15,6 +15,22 @@ from averagemeter import AverageMeter
 from model import Glow
 from enum import Enum
 from torch import autograd
+import csv
+
+def write_arr_to_csv(arr, filename):
+    """
+    outputs an array of dictionaries to a CSV file
+    Args:
+        arr: an array of dictionaries
+        filename: name of the output file
+    """
+    keys = arr[0].keys()
+    with open(f"{filename}.csv", "w", newline='') as output_file:
+        dict_writer = csv.DictWriter(output_file, keys)
+        dict_writer.writeheader()
+        dict_writer.writerows(arr)
+
+
 
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
@@ -91,15 +107,15 @@ def main(args):
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         print(f"training epoch {epoch}")
-        train(net, train_set, device, optimizer, loss_function)
+        train(net, train_set, device, optimizer, loss_function, epoch)
         # how often do we want to test?
-        # if (epoch % 10 == 0):  # revert this to 10 once we know that this works
-        #     print(f"testing epoch {epoch}")
-        #     test(net, test_set, device, loss_function, epoch, args.generate_samples)
+        if (epoch % 1 == 0):  # revert this to 10 once we know that this works
+            print(f"testing epoch {epoch}")
+            test(net, test_set, device, loss_function, epoch, args.generate_samples)
 
 
 @torch.enable_grad()
-def train(model, trainloader, device, optimizer, loss_function):
+def train(model, trainloader, device, optimizer, loss_function, epoch):
     """
     Trains the model for one epoch.
     Args:
@@ -109,9 +125,10 @@ def train(model, trainloader, device, optimizer, loss_function):
         optimizer
         loss_function
     """
+    global train_losses
     model.train()
     train_iter = 0
-    # loss_meter = AverageMeter("train-avg")
+    loss_meter = AverageMeter("train-avg")
     for x, _ in trainloader:
         x = x.to(device)
         z, logdet, _, logp = model(preprocess(x))
@@ -123,17 +140,19 @@ def train(model, trainloader, device, optimizer, loss_function):
 
         if(train_iter % 10 == 0):
             print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
-        # loss_meter.update(loss.item(), x.size(0))
+        
         model.zero_grad()
+        loss_meter.update(loss.item())
         loss.backward()
         optimizer.step()
-        # scheduler.step()
         train_iter += 1
-
+    print(f"epoch complete, mean loss: {loss_meter.avg}")
+    train_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
 
 @torch.no_grad()
 def test(model, testloader, device, loss_function, epoch, generate_imgs):
     global best_loss  # keep track of best loss
+    global test_losses
     model.eval()
     loss = 0
     num_samples = 32  # should probably be an argument
@@ -141,14 +160,14 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
     loss_meter = AverageMeter('test-avg')
     for x, y in testloader:
         x = x.to(device)
-        z, logdet, _, logp = model(x)
+        z, logdet, _, logp = model(preprocess(x))
         loss = loss_function(logp, logdet, x.size())
 
         # code for rosalinty model
         # log_p_sum, logdet, z_outs = model(x)
         # loss = loss_function(log_p_sum, logdet, x.size())
 
-        loss_meter.update(loss.item(), x.size(0))
+        loss_meter.update(loss.item())
 
     if loss_meter.avg < best_loss:
         print(f"New best model found, average loss {loss_meter.avg}")
@@ -163,9 +182,10 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
         best_loss = loss_meter.avg
     x = next(iter(testloader))[0]  # extract first batch of data in order to get shape for bits_per_dimens method
     print(f"test epoch complete, result: {loss_meter.avg} bits/dim")
+    test_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
     # generate samples after each test (?)
     if(generate_imgs):
-        sample_images = generate(model, num_samples, device)
+        sample_images = generate(model, num_samples, device, x.size(1))
         os.makedirs('generated_imgs', exist_ok=True)
         grid = torchvision.utils.make_grid(sample_images, nrow=num_samples ** 0.5)
         torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}")
@@ -219,6 +239,12 @@ if __name__ == "__main__":
 
     best_loss = float('inf')
     glbl_step = 0
+    train_losses = []
+    test_losses = []
 
     #with autograd.detect_anomaly():
     main(parser.parse_args())
+
+    #write statistics to file
+    write_arr_to_csv(train_losses, "train_losses")
+    write_arr_to_csv(test_losses, "test_losses")
