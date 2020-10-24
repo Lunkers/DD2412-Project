@@ -29,6 +29,7 @@ class FlowNLL(nn.Module):
         #log-likelihood of the (assumed) gaussian for p(z)
         logdet = logdet.mean()
         pixels = np.prod(img_size[1:])
+        logdet = logdet.mean()
         loss = -np.log(n_bins) * pixels
         loss = loss + logdet + logp_sum
         # prior_log_likelihood = -0.5 * (z ** 2 +np.log(2 * np.pi))
