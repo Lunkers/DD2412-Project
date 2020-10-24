@@ -27,6 +27,7 @@ class FlowNLL(nn.Module):
             logdet: the log-determinant
         """
         #log-likelihood of the (assumed) gaussian for p(z)
+        logdet = logdet.mean()
         pixels = np.prod(img_size[1:])
         loss = -np.log(n_bins) * pixels
         loss = loss + logdet + logp_sum

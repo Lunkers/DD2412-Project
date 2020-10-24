@@ -4,9 +4,10 @@ import os
 import future
 import numpy as np
 import matplotlib.pyplot as plt
-
-transform_cifar = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-    degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
+# torchvision.transforms.RandomAffine(degrees=0, translate=(0.1, 0.1))
+transform_cifar = torchvision.transforms.Compose([torchvision.transforms.CenterCrop(32),
+                                                  torchvision.transforms.RandomHorizontalFlip(),
+                                                  torchvision.transforms.ToTensor()])
 transform_mnist = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
     degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
 

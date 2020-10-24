@@ -15,6 +15,7 @@ from averagemeter import AverageMeter
 from model import Glow
 from enum import Enum
 from torch import autograd
+from model_ros import Glow as Glow_ros
 
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
@@ -32,6 +33,10 @@ def get_dataloader(dataset, batch_size):
     if dataset == "CIFAR":
         return cifar_train, cifar_test
 
+# same preprocessing as rosalinty
+def preprocess(x, n_bins=256):
+    x = (x * 255) / n_bins - 0.5
+    return x + torch.rand_like(x) / n_bins
 
 def main(args):
     # we're probably only be using 1 GPU, so this should be fine
@@ -53,9 +58,12 @@ def main(args):
     input_channels = channels_from_dataset(args.dataset)
     print(f"amount of  input channels: {input_channels}")
     # instantiate model
-    # baby network to make sure training script works
+    # # baby network to make sure training script works
     net = Glow(in_channels=input_channels,
                depth=args.amt_flow_steps, levels=args.amt_levels)
+
+    # code for rosalinty model
+    # net = Glow_ros(input_channels, args.amt_flow_steps, args.amt_levels)
 
     net = net.to(device)
 
@@ -74,24 +82,24 @@ def main(args):
         start_epoch = checkpoint["epoch"]
 
     loss_function = FlowNLL().to(device)
-    optimizer = optim.Adam(net.parameters(), lr=args.lr)
+    optimizer = optim.Adam(net.parameters(), lr=float(args.lr))
     # scheduler found in code, no mention in paper
-    scheduler = sched.LambdaLR(
-        optimizer, lambda s: min(1., s / args.warmup_iters))
+    # scheduler = sched.LambdaLR(
+    #     optimizer, lambda s: min(1., s / args.warmup_iters))
 
     # should we add a resume function here?
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         print(f"training epoch {epoch}")
-        train(net, train_set, device, optimizer, loss_function, scheduler)
+        train(net, train_set, device, optimizer, loss_function)
         # how often do we want to test?
-        if (epoch % 10 == 0):  # revert this to 10 once we know that this works
-            print(f"testing epoch {epoch}")
-            test(net, test_set, device, loss_function, epoch, args.generate_samples)
+        # if (epoch % 10 == 0):  # revert this to 10 once we know that this works
+        #     print(f"testing epoch {epoch}")
+        #     test(net, test_set, device, loss_function, epoch, args.generate_samples)
 
 
 @torch.enable_grad()
-def train(model, trainloader, device, optimizer, loss_function, scheduler):
+def train(model, trainloader, device, optimizer, loss_function):
     """
     Trains the model for one epoch.
     Args:
@@ -103,21 +111,23 @@ def train(model, trainloader, device, optimizer, loss_function, scheduler):
     """
     model.train()
     train_iter = 0
-    loss_meter = AverageMeter("train-avg")
+    # loss_meter = AverageMeter("train-avg")
     for x, y in trainloader:
         x = x.to(device)
         optimizer.zero_grad()
-        z, logdet, eps, logp = model(x)
-        # print(eps)
-        # print(logdet.size())
-        # need to check how they formulate their loss function
+        z, logdet, _, logp = model(preprocess(x))
         loss = loss_function(logp, logdet, x.size())
+
+        # code for rosalinty model
+        # log_p_sum, logdet, z_outs = model(preprocess(x))
+        # loss = loss_function(log_p_sum, logdet, x.size())
+
         if(train_iter % 10 == 0):
             print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
-        loss_meter.update(loss.item(), x.size(0))
+        # loss_meter.update(loss.item(), x.size(0))
         loss.backward()
         optimizer.step()
-        scheduler.step()
+        # scheduler.step()
         train_iter += 1
 
 
@@ -133,6 +143,11 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
         x = x.to(device)
         z, logdet, _, logp = model(x)
         loss = loss_function(logp, logdet, x.size())
+
+        # code for rosalinty model
+        # log_p_sum, logdet, z_outs = model(x)
+        # loss = loss_function(log_p_sum, logdet, x.size())
+
         loss_meter.update(loss.item(), x.size(0))
 
     if loss_meter.avg < best_loss:

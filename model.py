@@ -4,6 +4,9 @@ import numpy as np
 from affinecoupling import AffineCouplingLayer
 from actnorm import ActNorm
 from invconv import InvConv
+from math import log, pi
+from torch.nn import functional as F
+from zeroconv import ZeroConv2d
 
 
 # TODO: Make sure dimens are correct through the operations
@@ -32,20 +35,27 @@ class Glow(nn.Module):
         for _ in range(self.levels - 1):
             self.zeroconv.append(ZeroConv2d(in_channels * 2, in_channels * 4))
             in_channels *= 2
+        self.zeroconv.append(ZeroConv2d(in_channels * 4, in_channels * 8))
 
     def forward(self, x):
         logdet = 0
         eps = []
-        x = squeeze(x)
         logp_sum = 0
         for i, current_block in enumerate(self.blocks):
-            x, logdet = current_block(x, logdet)
+            x = squeeze(x)
+            x, logds = current_block(x)
+            logdet = logdet + logds
             # print(f"logdet: {logdet.shape}\nx: {x.shape}")
             if i < self.levels - 1: #last block shouldnt split
-                x, logdet, _eps, logp = split(x, self.zeroconv[i], logdet)
+                x, _eps, logp = split(x, self.zeroconv[i])
                 # print(f"after split\niter: {i}\nlogdet: {logdet.shape}\nx: {x.shape}")
                 eps.append(_eps)
-                logp_sum += logp
+            elif i == len(self.blocks) - 1:  # perform this at last iteration
+                zero = torch.zeros_like(x)
+                mean, log_sd = self.zeroconv[i](zero).chunk(2, 1)
+                logp = gaussian_log_p(x, mean, log_sd)
+                logp = logp.sum(dim=[1, 2, 3])
+            logp_sum += logp
 
         return x, logdet, eps, logp_sum
 
@@ -75,9 +85,11 @@ class Block(nn.Module):
         channel_after_squeeze = in_channels * 4  # because we apply a squeeze at the start
         self.flows = nn.ModuleList([StepFlow(channel_after_squeeze) for _ in range(depth)])
 
-    def forward(self, x, logdet=None):
+    def forward(self, x):
+        logdet = 0
         for flow in self.flows:
-            x, logdet = flow(x, logdet)
+            x, logds = flow(x)
+            logdet = logdet + logds
         return x, logdet
 
     def reverse(self, x, logdet=None):
@@ -85,6 +97,12 @@ class Block(nn.Module):
             x, logdet = flow.reverse(x, logdet)
         return x, logdet
 
+def gaussian_log_p(x, mean, log_sd):
+    return -0.5 * log(2 * pi) - log_sd - 0.5 * (x - mean) ** 2 / torch.exp(2 * log_sd)
+
+
+def gaussian_sample(eps, mean, log_sd):
+    return mean + torch.exp(log_sd) * eps
 
 class StepFlow(nn.Module):
     def __init__(self, in_channels):
@@ -95,12 +113,12 @@ class StepFlow(nn.Module):
         self.inconv = InvConv(in_channels)
         self.affine_coupling = AffineCouplingLayer(in_channels)
 
-    def forward(self, x, logdet=None):
-        x, logdet = self.actnorm(x, logdet)
-        x, logdet = self.inconv(x, logdet)
-        x, logdet = self.affine_coupling(x, logdet)
+    def forward(self, x):
+        x, logdet1 = self.actnorm(x)
+        x, logdet2 = self.inconv(x)
+        x, logdet3 = self.affine_coupling(x)
 
-        return x, logdet
+        return x, logdet1 + logdet2 + logdet3
 
     def reverse(self, x, logdet=None):
         x, logdet = self.affine_coupling.reverse(x, logdet)
@@ -131,22 +149,23 @@ def squeeze(x: torch.Tensor, factor=2, reverse=False):
     return x
 
 
-def split(x, zeroconv, logdet=0.):
-    x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
+def split(x, zeroconv):
+    # x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
+    x_a, x_b = x.chunk(2, 1)
     gd = split_prior(x_a, zeroconv)
 
     #logdet += gd.logp(x_b)
-    x_a = squeeze(x_a)
     eps = gd.get_eps(x_b)
 
-    return x_a, logdet, eps, gd.logp(x_b)
+    return x_a, eps, gd.logp(x_b)
 
 
 def split_prior(x_a, zeroconv):
     h = zeroconv(x_a)
 
-    mean = h[:, 0::2, :, :]
-    logs = h[:, 1::2, :, :]
+    # mean = h[:, 0::2, :, :]
+    # logs = h[:, 1::2, :, :]
+    mean, logs = h.chunk(2, 1)
 
     gd = gaussian_diag(mean, logs)
     return gd
@@ -166,23 +185,6 @@ def split_reverse(x, eps, eps_std, zeroconv):
     x = torch.cat((x_a, x_b), dim=1)
 
     return x
-
-
-class ZeroConv2d(nn.Module):
-    def __init__(self, in_channel, out_channels):
-        super(ZeroConv2d, self).__init__()
-        self.conv = nn.Conv2d(in_channel, out_channels, kernel_size=3, padding=1)
-        torch.nn.init.zeros_(self.conv.weight)
-        torch.nn.init.zeros_(self.conv.bias)
-
-    def forward(self, x):
-        return self.conv(x)
-
-
-# def zero_conv2D(x, in_channels, out_channels):
-#     zero_conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-#     h = zero_conv(x)
-#     return h
 
 
 def gaussian_diag(mean, logsd):
