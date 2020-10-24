@@ -34,7 +34,7 @@ def write_arr_to_csv(arr, filename):
 
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
-        return 1
+        return 3 #openAI apparently stack MNIST to be 3 channels
     else:
         return 3
 
