@@ -15,7 +15,6 @@ from averagemeter import AverageMeter
 from model import Glow
 from enum import Enum
 from torch import autograd
-from model_ros import Glow as Glow_ros
 
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
@@ -32,6 +31,7 @@ def get_dataloader(dataset, batch_size):
         return mnist_train, mnist_test
     if dataset == "CIFAR":
         return cifar_train, cifar_test
+
 
 # same preprocessing as rosalinty
 def preprocess(x, n_bins=256):
@@ -63,7 +63,7 @@ def main(args):
                depth=args.amt_flow_steps, levels=args.amt_levels)
 
     # code for rosalinty model
-    # net = Glow_ros(input_channels, args.amt_flow_steps, args.amt_levels)
+    # net = RosGlow(input_channels, args.amt_flow_steps, args.amt_levels)
 
     net = net.to(device)
 
@@ -112,9 +112,8 @@ def train(model, trainloader, device, optimizer, loss_function):
     model.train()
     train_iter = 0
     # loss_meter = AverageMeter("train-avg")
-    for x, y in trainloader:
+    for x, _ in trainloader:
         x = x.to(device)
-        optimizer.zero_grad()
         z, logdet, _, logp = model(preprocess(x))
         loss = loss_function(logp, logdet, x.size())
 
@@ -125,6 +124,7 @@ def train(model, trainloader, device, optimizer, loss_function):
         if(train_iter % 10 == 0):
             print(f"iteration: {train_iter}, loss: {loss.item()}", end="\r")
         # loss_meter.update(loss.item(), x.size(0))
+        model.zero_grad()
         loss.backward()
         optimizer.step()
         # scheduler.step()
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     # using CIFAR optimizations as default here
     parser.add_argument('--batch_size', default=64,
                         type=int, help="minibatch size")
-    parser.add_argument('--lr', default=0.001, help="learning rate")
+    parser.add_argument('--lr', default=1e-4, help="learning rate")
     parser.add_argument('--amt_channels', '-C', default=512,
                         help="amount of channels in the hidden layers")  # maybe remove this part? Don't have any way to pass it down atm
     parser.add_argument('--amt_levels', '-L', default=3, type=int,
@@ -220,5 +220,5 @@ if __name__ == "__main__":
     best_loss = float('inf')
     glbl_step = 0
 
-    # with autograd.detect_anomaly():
+    #with autograd.detect_anomaly():
     main(parser.parse_args())
