@@ -69,10 +69,13 @@ class TestGlow:
 
     def test_generate_sample(self):
         in_channel_cifar = 3
-        glow = Glow(in_channel_cifar, 3, 4)
-        x = generate(glow, 2, 'cpu', 48)
+        levels = 4
+        depth = 8
+        glow = Glow(in_channel_cifar, levels, depth)
+        x = torch.randn((2, 3, 32, 32))
+        x = generate(glow, 2, 'cpu', x.shape, levels)
+        # print(x)
         print(x.shape)
-        print(x)
         # assert 1==2
 
     # def test_test(self):

@@ -111,7 +111,7 @@ def main(args):
         # how often do we want to test?
         if (epoch % 1 == 0):  # revert this to 10 once we know that this works
             print(f"testing epoch {epoch}")
-            test(net, test_set, device, loss_function, epoch, args.generate_samples)
+            test(net, test_set, device, loss_function, epoch, args.generate_samples, args.amt_levels)
 
 
 @torch.enable_grad()
@@ -150,7 +150,7 @@ def train(model, trainloader, device, optimizer, loss_function, epoch):
     train_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
 
 @torch.no_grad()
-def test(model, testloader, device, loss_function, epoch, generate_imgs):
+def test(model, testloader, device, loss_function, epoch, generate_imgs, levels):
     global best_loss  # keep track of best loss
     global test_losses
     model.eval()
@@ -180,19 +180,20 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs):
         # save the model
         torch.save(checkpoint_state, "checkpoints/best.pth.tar")
         best_loss = loss_meter.avg
-    x = next(iter(testloader))[0]  # extract first batch of data in order to get shape for bits_per_dimens method
     print(f"test epoch complete, result: {loss_meter.avg} bits/dim")
     test_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
+    x = next(iter(testloader))[0]  # extract first batch of data in order to get channel dimens
     # generate samples after each test (?)
     if(generate_imgs):
-        sample_images = generate(model, num_samples, device, x.size(1))
+        sample_images = generate(model, num_samples, device, shape=x.shape, levels=levels)
         os.makedirs('generated_imgs', exist_ok=True)
-        grid = torchvision.utils.make_grid(sample_images, nrow=num_samples ** 0.5)
-        torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}")
+        print(sample_images.size)
+        grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
+        torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
 
 
 @torch.no_grad()
-def generate(model, n_samples, device, n_channels=3):
+def generate(model, n_samples, device, shape, levels):
     """
     Generate samples from the model
     args:
@@ -203,7 +204,12 @@ def generate(model, n_samples, device, n_channels=3):
     """
     # z = torch.randn((n_samples, n_channels, 32, 32),
     #                 dtype=torch.float32, device=device)
-    z = torch.randn((n_samples, n_channels, 4, 4), dtype=torch.float32, device=device)
+    channels, height, width = shape[1], shape[2], shape[3]
+    # initial channels * 4 * 2^(levels-1) with L=4 and initial_channels=3 for cifar
+    channels = int(channels * 4 * 2 ** (levels - 1))
+    height = int(height // (2**levels))
+    width = int(width // (2**levels))
+    z = torch.randn((n_samples, channels, height, width), dtype=torch.float32, device=device)
     x = model.reverse(z)
     return x
 
