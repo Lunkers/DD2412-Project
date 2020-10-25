@@ -109,7 +109,7 @@ def main(args):
         print(f"training epoch {epoch}")
         train(net, train_set, device, optimizer, loss_function, epoch)
         # how often do we want to test?
-        if (epoch % 1 == 0):  # revert this to 10 once we know that this works
+        if (epoch % 10 == 0):  # revert this to 10 once we know that this works
             print(f"testing epoch {epoch}")
             test(net, test_set, device, loss_function, epoch, args.generate_samples, args.amt_levels)
 
@@ -187,7 +187,6 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs, levels)
     if(generate_imgs):
         sample_images = generate(model, num_samples, device, shape=x.shape, levels=levels)
         os.makedirs('generated_imgs', exist_ok=True)
-        print(sample_images.size)
         grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
         torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
 
