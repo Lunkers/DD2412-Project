@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from nn import NN as NN_func
+from nn_with_normalization import NN as NN_norm
 from zeroconv import ZeroConv2d
 import torch.nn.functional as F
 
@@ -8,7 +9,8 @@ import torch.nn.functional as F
 class AffineCouplingLayer(nn.Module):
     def __init__(self, in_channels, out_channels=512, additive_coupling=False):
         super(AffineCouplingLayer, self).__init__()
-        self.NN = NN_func(in_channels, out_channels)
+        # self.NN = NN_func(in_channels, out_channels)
+        self.NN = NN_norm(in_channels, out_channels, use_normalization="batchnorm")
         self.additive_coupling = additive_coupling
 
     def forward(self, x):

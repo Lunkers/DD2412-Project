@@ -34,7 +34,7 @@ def write_arr_to_csv(arr, filename):
 
 def channels_from_dataset(dataset):
     if dataset == "MNIST":
-        return 1
+        return 3 #openAI apparently stack MNIST to be 3 channels
     else:
         return 3
 
@@ -90,8 +90,8 @@ def main(args):
     if args.resume:
         print("resuming from checkpoint found in checkpoints/best.pth.tar.")
         # raise error if no checkpoint directory is found
-        assert os.path.isdir("checkpoints")
-        checkpoint = torch.load("checkpoints/best.pth.tar")
+        assert os.path.isdir("new_checkpoints")
+        checkpoint = torch.load("new_checkpoints/best.pth.tar")
         net.load_state_dict(checkpoint["model"])
         global best_loss
         best_loss = checkpoint["test_loss"]
@@ -176,9 +176,9 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs, levels)
             "test_loss": loss_meter.avg,
             "epoch": epoch
         }
-        os.makedirs("checkpoints", exist_ok=True)
+        os.makedirs("new_checkpoints", exist_ok=True)
         # save the model
-        torch.save(checkpoint_state, "checkpoints/best.pth.tar")
+        torch.save(checkpoint_state, "new_checkpoints/best.pth.tar")
         best_loss = loss_meter.avg
     print(f"test epoch complete, result: {loss_meter.avg} bits/dim")
     test_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
@@ -251,5 +251,5 @@ if __name__ == "__main__":
     main(parser.parse_args())
 
     #write statistics to file
-    write_arr_to_csv(train_losses, "train_losses")
-    write_arr_to_csv(test_losses, "test_losses")
+    write_arr_to_csv(train_losses, "new_train_losses")
+    write_arr_to_csv(test_losses, "new_test_losses")

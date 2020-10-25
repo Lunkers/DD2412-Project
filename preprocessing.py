@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 transform_cifar = torchvision.transforms.Compose([torchvision.transforms.CenterCrop(32),
                                                   torchvision.transforms.RandomHorizontalFlip(),
                                                   torchvision.transforms.ToTensor()])
-transform_mnist = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
+transform_mnist = torchvision.transforms.Compose([torchvision.transforms.Pad(2), torchvision.transforms.Grayscale(3),torchvision.transforms.RandomAffine(
     degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
 
 class Dataloader():
