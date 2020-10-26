@@ -41,8 +41,8 @@ class NN(nn.Module):
         elif self.use_normalization == "batchnorm":
             x = F.relu(self.normalize1(self.conv1(x)))
             x = F.relu(self.normalize2(self.conv2(x)))
-            # return self.normalize3(self.conv3(x))
-            return self.conv3(x)
+            return self.normalize3(self.conv3(x))
+            # return self.conv3(x)
         else:
             x = F.relu(self.conv1(x))
             x = F.relu(self.conv2(x))
