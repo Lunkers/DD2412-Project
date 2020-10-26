@@ -19,7 +19,7 @@ def get_dataloader(dataset, batch_size):
 
 def main(args):
     # we're probably only be using 1 GPU, so this should be fine
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cpu'
     print(f"running on {device}")
     # set random seed for all
     random.seed(args.seed)
@@ -40,6 +40,7 @@ def main(args):
 
     num_samples = args.batch_size
     sample_images = generate(net, num_samples, device, shape=x.shape, levels=args.amt_levels)
+    # sample_images = generate2(net, num_samples, device, shape=x.shape, levels=args.amt_levels)
     os.makedirs('final_generation_img', exist_ok=True)
     grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
     # torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
@@ -64,6 +65,28 @@ def generate(model, n_samples, device, shape, levels):
     width = int(width // (2**levels))
     z = torch.randn((n_samples, channels, height, width), dtype=torch.float32, device=device)
     x = model.reverse(z)
+
+    return x
+
+@torch.no_grad()
+def generate2(model, n_samples, device, shape, levels):
+    """
+    Generate samples from the model
+    args:
+        model: the network model
+        n_samples: amount of samples to generate
+        device: the device we run the model on
+        n_channels: the amount of channels for the output (usually 3, but on MNIST it's 1)
+    """
+    # z = torch.randn((n_samples, n_channels, 32, 32),
+    #                 dtype=torch.float32, device=device)
+    channels, height, width = shape[1], shape[2], shape[3]
+    # initial channels * 4 * 2^(levels-1) with L=4 and initial_channels=3 for cifar
+    channels = int(channels * 4 * 2 ** (levels-1))
+    height = int(height // (2**levels))
+    width = int(width // (2**levels))
+    z = torch.randn((n_samples, channels, height, width), dtype=torch.float32, device=device)
+    x = model.reverse2(z)
 
     return x
 
