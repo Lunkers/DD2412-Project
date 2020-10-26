@@ -88,10 +88,10 @@ def main(args):
     start_epoch = 0
     # TODO: add functionality for loading checkpoints here
     if args.resume:
-        print("resuming from checkpoint found in checkpoints/best.pth.tar.")
+        print("resuming from checkpoint found in checkpoints/best_{args.dataset.lower()}.pth.tar.")
         # raise error if no checkpoint directory is found
         assert os.path.isdir("new_checkpoints")
-        checkpoint = torch.load("new_checkpoints/best.pth.tar")
+        checkpoint = torch.load(f"new_checkpoints/best_{args.dataset.lower()}.pth.tar")
         net.load_state_dict(checkpoint["model"])
         global best_loss
         best_loss = checkpoint["test_loss"]
@@ -111,7 +111,7 @@ def main(args):
         # how often do we want to test?
         if (epoch % 10 == 0):  # revert this to 10 once we know that this works
             print(f"testing epoch {epoch}")
-            test(net, test_set, device, loss_function, epoch, args.generate_samples, args.amt_levels)
+            test(net, test_set, device, loss_function, epoch, args.generate_samples, args.amt_levels, args.dataset)
 
 
 @torch.enable_grad()
@@ -150,7 +150,7 @@ def train(model, trainloader, device, optimizer, loss_function, epoch):
     train_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
 
 @torch.no_grad()
-def test(model, testloader, device, loss_function, epoch, generate_imgs, levels):
+def test(model, testloader, device, loss_function, epoch, generate_imgs, levels, dataset_name):
     global best_loss  # keep track of best loss
     global test_losses
     model.eval()
@@ -178,7 +178,7 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs, levels)
         }
         os.makedirs("new_checkpoints", exist_ok=True)
         # save the model
-        torch.save(checkpoint_state, "new_checkpoints/best.pth.tar")
+        torch.save(checkpoint_state, f"new_checkpoints/best_{dataset_name.lower()}.pth.tar")
         best_loss = loss_meter.avg
     print(f"test epoch complete, result: {loss_meter.avg} bits/dim")
     test_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})

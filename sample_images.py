@@ -35,7 +35,7 @@ def main(args):
     net = net.to(device)
 
     assert os.path.isdir("checkpoints")
-    checkpoint = torch.load("checkpoints/best.pth.tar")
+    checkpoint = torch.load(f"checkpoints/best_{args.dataset}.pth.tar")
     net.load_state_dict(checkpoint["model"])
 
     num_samples = args.batch_size
