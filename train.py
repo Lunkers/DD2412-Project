@@ -111,7 +111,8 @@ def main(args):
         # how often do we want to test?
         if (epoch % 10 == 0):  # revert this to 10 once we know that this works
             print(f"testing epoch {epoch}")
-            test(net, test_set, device, loss_function, epoch, args.generate_samples, args.amt_levels, args.dataset)
+            test(net, test_set, device, loss_function, epoch, args.generate_samples,
+                 args.amt_levels, args.dataset, args.n_samples)
 
 
 @torch.enable_grad()
@@ -150,12 +151,12 @@ def train(model, trainloader, device, optimizer, loss_function, epoch):
     train_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
 
 @torch.no_grad()
-def test(model, testloader, device, loss_function, epoch, generate_imgs, levels, dataset_name):
+def test(model, testloader, device, loss_function, epoch, generate_imgs, levels, dataset_name, n_samples):
     global best_loss  # keep track of best loss
     global test_losses
     model.eval()
     loss = 0
-    num_samples = 32  # should probably be an argument
+    num_samples = n_samples
     # TODO: add average loss checker here, they use that in code for checkpointing
     loss_meter = AverageMeter('test-avg')
     for x, y in testloader:
@@ -209,7 +210,7 @@ def generate(model, n_samples, device, shape, levels):
         x_random = torch.randn(n_samples, ch, h, w) * temperature
         x_sample.append(x_random.to(device))
     x = model.reverse(x_sample)
-    x /= 0.6  # attempt to make it brighter, seen as rescaling it to reverse the effect of using temperature
+    #x /= 0.6  # attempt to make it brighter, seen as rescaling it to reverse the effect of using temperature
     return x
 
 def create_x_shapes(channels, height, width, levels):
@@ -242,6 +243,7 @@ if __name__ == "__main__":
     parser.add_argument('--amt_flow_steps', '-K', type=int,
                         default=32, help="amount of flow steps")
     parser.add_argument('--seed', default=0, help="random seed")
+    parser.add_argument('--n_samples', '-S', default=64, type=int, help="number of samples to generate")
     # no mention of this in the paper, but quite a lot in the code
     parser.add_argument('--warmup_iters', default=5000,
                         help="amount of iterations for learning rate warmup")

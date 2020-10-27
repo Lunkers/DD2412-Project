@@ -38,13 +38,13 @@ def main(args):
     checkpoint = torch.load(f"checkpoints/best_{args.dataset}.pth.tar")
     net.load_state_dict(checkpoint["model"])
 
-    num_samples = args.batch_size
+    num_samples = args.n_samples
     sample_images = generate(net, num_samples, device, shape=x.shape, levels=args.amt_levels)
 
     os.makedirs('final_generation_img', exist_ok=True)
     grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
     # torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
-    torchvision.utils.save_image(grid, f"final_generation_img/epoch_{100}_brighter.png", normalize=True, nrow=10,
+    torchvision.utils.save_image(grid, f"final_generation_img/epoch_{100}_b.png", normalize=True, nrow=10,
                                  range=(-0.5, 0.5))
 
 @torch.no_grad()
@@ -93,6 +93,7 @@ if __name__ == '__main__':
     parser.add_argument('--amt_flow_steps', '-K', type=int,
                         default=8, help="amount of flow steps")
     parser.add_argument('--seed', default=0, help="random seed")
+    parser.add_argument('--n_samples', '-S', default=64, type=int, help="samples to generate")
     parser.add_argument('--dataset', default=DatasetEnum.CIFAR,
                         type=str, choices=[dataset.name for dataset in DatasetEnum])
 
