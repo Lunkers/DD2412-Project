@@ -4,6 +4,12 @@ import os
 import future
 import numpy as np
 import matplotlib.pyplot as plt
+# torchvision.transforms.RandomAffine(degrees=0, translate=(0.1, 0.1))
+transform_cifar = torchvision.transforms.Compose([torchvision.transforms.CenterCrop(32),
+                                                  torchvision.transforms.RandomHorizontalFlip(),
+                                                  torchvision.transforms.ToTensor()])
+transform_mnist = torchvision.transforms.Compose([torchvision.transforms.Pad(2), torchvision.transforms.Grayscale(3),torchvision.transforms.RandomAffine(
+    degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor()])
 
 class Dataloader():
     def __init__(self):
@@ -15,10 +21,6 @@ class Dataloader():
         if not os.path.isdir(self.path2data):
             os.mkdir(self.path2data)
 
-        transform_cifar = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0, 0, 0), (1, 1, 1))])
-        transform_mnist = torchvision.transforms.Compose([torchvision.transforms.RandomAffine(
-            degrees=0, translate=(0.1, 0.1)), torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(0, 1)])
 
         traincifar10 = torchvision.datasets.CIFAR10(
             root=self.path2data, train=True, download=True, transform=transform_cifar)
@@ -41,6 +43,25 @@ class Dataloader():
             testmnist, batch_size=batch_size_mnist, shuffle=False)
 
         return trainloader_cifar10, testloader_cifar10, trainloader_mnist, testloader_mnist
+
+    def load_subset_of_cifar(self, batch_size_cifar=4, subset_train_size=1000, subset_test_size=100):
+        if not os.path.isdir(self.path2data):
+            os.mkdir(self.path2data)
+
+        traincifar10 = torchvision.datasets.CIFAR10(
+            root=self.path2data, train=True, download=True, transform=transform_cifar)
+        testcifar10 = torchvision.datasets.CIFAR10(
+            root=self.path2data, train=False, download=True, transform=transform_cifar)
+
+        traincifar10 = torch.utils.data.Subset(traincifar10, range(subset_train_size))
+        testcifar10 = torch.utils.data.Subset(traincifar10, range(subset_test_size))
+
+        trainloader_cifar10 = torch.utils.data.DataLoader(
+            traincifar10, batch_size=batch_size_cifar, shuffle=True)
+        testloader_cifar10 = torch.utils.data.DataLoader(
+            testcifar10, batch_size=batch_size_cifar, shuffle=False)
+
+        return trainloader_cifar10, testloader_cifar10
 
 
 def imshow(img):

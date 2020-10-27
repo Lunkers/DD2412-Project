@@ -19,7 +19,7 @@ class FlowNLL(nn.Module):
         super(FlowNLL, self).__init__()
         self.k = k
 
-    def forward(self, z, logdet):
+    def forward(self, logp_sum, logdet, img_size, n_bins = 256):
         """
         Forward pass for the loss function
         Args:
@@ -27,12 +27,17 @@ class FlowNLL(nn.Module):
             logdet: the log-determinant
         """
         #log-likelihood of the (assumed) gaussian for p(z)
-        prior_log_likelihood = 0.5 * (z ** 2 +np.log(2 * np.pi))
-        prior_log_likelihood = prior_log_likelihood.flatten(1).sum(-1) - np.log(self.k) * np.prod(z.size()[:1]) 
-        log_likelihood = prior_log_likelihood + logdet
-        negative_log_likelihood = -log_likelihood.mean()
+        logdet = logdet.mean()
+        pixels = np.prod(img_size[1:])
+        logdet = logdet.mean()
+        loss = -np.log(n_bins) * pixels
+        loss = loss + logdet + logp_sum
+        # prior_log_likelihood = -0.5 * (z ** 2 +np.log(2 * np.pi))
+        # prior_log_likelihood = z.flatten(1).sum(-1) - np.log(self.k) * np.prod(z.size()[:1]) 
+        # log_likelihood = prior_log_likelihood + logdet
+        # negative_log_likelihood = -log_likelihood.mean()
 
-        return negative_log_likelihood
+        return (-loss / (np.log(2.) * pixels)).mean()
 
 def bits_per_dimension(x, negative_log_likelihood):
     """
@@ -43,6 +48,6 @@ def bits_per_dimension(x, negative_log_likelihood):
         negative_log_likelihood: negative log-likelihood loss tensor
     """
     dimensions = np.prod(x.size()[1:])
-    bpd = nll / np.log(2 * dim)
+    bpd = -negative_log_likelihood / (np.log(2) * dimensions)
 
     return bpd 

@@ -1,59 +1,60 @@
 import torch
 import torch.nn as nn
 from nn import NN as NN_func
+from nn_with_normalization import NN as NN_norm
+from zeroconv import ZeroConv2d
+import torch.nn.functional as F
 
 
 class AffineCouplingLayer(nn.Module):
-    def __init__(self, z, additive_coupling=False):
+    def __init__(self, in_channels, out_channels=512, additive_coupling=False, use_normalization=""):
         super(AffineCouplingLayer, self).__init__()
-        assert len(z.shape) == 4  # expect data to be (batch_size, channels, height, width)
-        in_channels, out_channels = z.shape[2], z.shape[3]
-        self.NN = NN_func(in_channels, out_channels)
-
-        self.scale_forward = torch.zeros(1)
-        self.scale_reverse = torch.zeros(1)
-
+        #self.NN = NN_func(in_channels, out_channels)
+        self.NN = NN_norm(in_channels, out_channels, use_normalization=use_normalization)
         self.additive_coupling = additive_coupling
 
     def forward(self, x):
         # assuming shape is (batch_size, channels, height, width)
-        x_a, x_b = torch.split(x, x.shape[1] // 2, 1)
+        x_a, x_b = x.chunk(2, dim=1)
 
         if self.additive_coupling:
             scale = 1
             y_a = x_a + self.NN(x_b)  # there is no scale when using additive coupling, only shift hence the adding
         else:
-            h = self.NN(x_b)
-            shift = h[:, 0::2, :, :]  # s = scale and t = shift
-            scale = torch.sigmoid(torch.log(h[:, 1::2, :, :]))  # they add 2. in the code but i guess we can skip
-            y_a = scale * x_a + shift
+            h = self.NN(x_a)
+            # scale, shift = h[:, 0::2, ...], h[:, 1::2, ...]
+            scale, shift = h.chunk(2, 1)
+            scale = torch.sigmoid(scale + 2.)
+            y_b = scale * (x_b + shift)
 
-        self.s_forward = scale
-        y_b = x_b
-        y = torch.cat((y_a, y_b), dim=1)  # if channel is in the second dimension
+        y_a = x_a
+        y = torch.cat([y_a, y_b], dim=1)  # if channel is in the second dimension
 
-        return y
+        logdet = self.calc_logdet(scale)
+
+        return y, logdet
 
     def reverse(self, y):
         # assuming shape is (batch_size, channels, height, width)
-        y_a, y_b = torch.split(y, y.shape[1] // 2, 1)
+        y_a, y_b = y.chunk(2, 1)
 
         if self.additive_coupling:
             scale = 1
             x_a = y_a + self.NN(y_b)
         else:
-            h = self.NN(y_b)
-            shift = h[:, 0::2, :, :]
-            scale = torch.sigmoid(torch.log(h[:, 1::2, :, :]))  # they add 2. in the code, but i guess we can skip
-            x_a = (y_a - shift) / scale
+            h = self.NN(y_a)
+            scale, shift = torch.chunk(h, 2, 1)
+            scale = torch.sigmoid(scale + 2.)
+            x_b = (y_b - shift) / scale  # however in ros they do y_b / scale first and then subtract shift
 
-        self.scale_reverse = scale
-        x_b = y_b
-        x = torch.cat((x_a, x_b), dim=1)  # if channel is in the second dimension
+        x_a = y_a
+        x = torch.cat([x_a, x_b], dim=1)  # if channel is in the second dimension
+
+        # logdet = self.calc_logdet(scale)
+        # input_logdet = input_logdet - logdet
 
         return x
 
     # use logds only after forward or reverse has been calculated
-    def logds(self, forward):
-        scale = self.scale_forward if forward else self.scale_reverse
+    def calc_logdet(self, scale):
         return torch.sum(torch.log(torch.abs(scale)), dim=[1, 2, 3])
