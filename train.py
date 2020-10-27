@@ -88,7 +88,7 @@ def main(args):
     start_epoch = 0
     # TODO: add functionality for loading checkpoints here
     if args.resume:
-        print("resuming from checkpoint found in checkpoints/best_{args.dataset.lower()}.pth.tar.")
+        print(f"resuming from checkpoint found in checkpoints/best_{args.dataset.lower()}.pth.tar.")
         # raise error if no checkpoint directory is found
         assert os.path.isdir("new_checkpoints")
         checkpoint = torch.load(f"new_checkpoints/best_{args.dataset.lower()}.pth.tar")

@@ -44,7 +44,7 @@ def main(args):
     os.makedirs('final_generation_img', exist_ok=True)
     grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
     # torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
-    torchvision.utils.save_image(grid, f"final_generation_img/epoch_{100}_b.png", normalize=True, nrow=10,
+    torchvision.utils.save_image(grid, f"final_generation_img/epoch_{100}_{args.dataset.lower()}.png", normalize=True, nrow=10,
                                  range=(-0.5, 0.5))
 
 @torch.no_grad()
