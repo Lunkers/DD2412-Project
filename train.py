@@ -76,7 +76,7 @@ def main(args):
     # instantiate model
     # # baby network to make sure training script works
     net = Glow(in_channels=input_channels,
-               depth=args.amt_flow_steps, levels=args.amt_levels)
+               depth=args.amt_flow_steps, levels=args.amt_levels, use_normalization=args.norm_method)
 
     # code for rosalinty model
     # net = RosGlow(input_channels, args.amt_flow_steps, args.amt_levels)
@@ -247,6 +247,7 @@ if __name__ == "__main__":
     # no mention of this in the paper, but quite a lot in the code
     parser.add_argument('--warmup_iters', default=5000,
                         help="amount of iterations for learning rate warmup")
+    parser.add_argument('--norm_method', default="", help="normalization method to use in NN in affine coupling layer")
     parser.add_argument('--num_epochs', default=100, type=int,
                         help="number of epochs to train for")
     parser.add_argument('--resume', default=False,

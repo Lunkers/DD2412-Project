@@ -10,19 +10,20 @@ from zeroconv import ZeroConv2d
 
 
 class Glow(nn.Module):
-    def __init__(self, in_channels, levels, depth):
+    def __init__(self, in_channels, levels, depth, use_normalization):
         super(Glow, self).__init__()
         # expecting shape of (batch_size, channels, height, width)
         self.levels = levels
         self.depth = depth
         self.blocks = nn.ModuleList()
         self.zeroconv = nn.ModuleList()
+        self.use_norm = use_normalization
         self.initialize_blocks(in_channels)
         self.initalize_zeroconv(in_channels)
 
     def initialize_blocks(self, in_channels):
         for _ in range(self.levels):
-            self.blocks.append(Block(in_channels, self.depth))
+            self.blocks.append(Block(in_channels, self.depth, use_normalization=self.use_norm))
             # Note that at the last iteration the in_channel will not be applied to blocks, because split is not applied
             in_channels *= 2  # because we apply a split at the end of each level iteration and split has squeeze in it as well resulting in a factor of 2
 
@@ -73,11 +74,11 @@ def split_reverse(x, eps, zeroconv):
 
 
 class Block(nn.Module):
-    def __init__(self, in_channels, depth):
+    def __init__(self, in_channels, depth, use_normalization):
         super(Block, self).__init__()
 
         channel_after_squeeze = in_channels * 4  # because we apply a squeeze at the start
-        self.flows = nn.ModuleList([StepFlow(channel_after_squeeze) for _ in range(depth)])
+        self.flows = nn.ModuleList([StepFlow(channel_after_squeeze, use_normalization) for _ in range(depth)])
 
     def forward(self, x):
         logdet = 0
@@ -105,13 +106,13 @@ def sample(mean, logsd):
     return mean + torch.exp(logsd) * torch.normal(mean)
 
 class StepFlow(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, use_normalization):
         super(StepFlow, self).__init__()
 
         assert in_channels % 2 == 0
         self.actnorm = ActNorm(in_channels)
         self.inconv = InvConv(in_channels)
-        self.affine_coupling = AffineCouplingLayer(in_channels)
+        self.affine_coupling = AffineCouplingLayer(in_channels, use_normalization=use_normalization)
 
     def forward(self, x):
         x, logdet1 = self.actnorm(x)

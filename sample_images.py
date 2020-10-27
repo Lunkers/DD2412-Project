@@ -31,7 +31,7 @@ def main(args):
     x = next(iter(train_set))[0]  # extract first data from first batch
 
     net = Glow(in_channels=x.shape[1],
-               depth=args.amt_flow_steps, levels=args.amt_levels)
+               depth=args.amt_flow_steps, levels=args.amt_levels, use_normalization=args.norm_method)
     net = net.to(device)
 
     assert os.path.isdir("checkpoints")
@@ -94,6 +94,7 @@ if __name__ == '__main__':
                         default=8, help="amount of flow steps")
     parser.add_argument('--seed', default=0, help="random seed")
     parser.add_argument('--n_samples', '-S', default=64, type=int, help="samples to generate")
+    parser.add_argument('--norm_method', default="", help="samples to generate")
     parser.add_argument('--dataset', default=DatasetEnum.CIFAR,
                         type=str, choices=[dataset.name for dataset in DatasetEnum])
 

@@ -7,10 +7,10 @@ import torch.nn.functional as F
 
 
 class AffineCouplingLayer(nn.Module):
-    def __init__(self, in_channels, out_channels=512, additive_coupling=False):
+    def __init__(self, in_channels, out_channels=512, additive_coupling=False, use_normalization=""):
         super(AffineCouplingLayer, self).__init__()
-        self.NN = NN_func(in_channels, out_channels)
-        # self.NN = NN_norm(in_channels, out_channels, use_normalization="batchnorm")
+        #self.NN = NN_func(in_channels, out_channels)
+        self.NN = NN_norm(in_channels, out_channels, use_normalization=use_normalization)
         self.additive_coupling = additive_coupling
 
     def forward(self, x):
