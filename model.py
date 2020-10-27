@@ -9,11 +9,6 @@ from torch.nn import functional as F
 from zeroconv import ZeroConv2d
 
 
-# TODO: Make sure dimens are correct through the operations
-# TODO: Check that it trains correctly and optimizes the right parameters (make sure nn.ModuleList works correctly)
-# TODO: Make sure actnorm, inconv and affine coupling are complete and correct
-# TODO: Original code uses same padding, but there isn't a corresponding one in pytorch, wonder if we have to take into consideration?
-
 class Glow(nn.Module):
     def __init__(self, in_channels, levels, depth):
         super(Glow, self).__init__()
@@ -58,26 +53,23 @@ class Glow(nn.Module):
 
         return x, logdet, eps, logp_sum
 
-    def reverse(self, x, eps=None, eps_std=None):
-        # logdet = 0
-        if eps is None:
-            eps = [None] * (self.levels - 1)
-        # reversing the elements and the indices
+    def reverse(self, x):
         for i, current_block in reversed(list(enumerate(self.blocks))):
-            # print(f"iter: {i}")
             if i < self.levels - 1:
-                x = split_reverse(x, eps[i], eps_std, self.zeroconv[i])
-                # print(f"after split_reverse\niter: {i}\nx: {x.shape}")
-            elif i == self.levels - 1:
-                zero = torch.zeros_like(x)
+                output = split_reverse(output, x[i], self.zeroconv[i])
+            else:
+                zero = torch.zeros_like(x[i])
                 mean, log_sd = self.zeroconv[i](zero).chunk(2, 1)
-                x = sample(mean, log_sd)  # rosalinty does this differently, requiring eps values even when sampling
+                output = gaussian_sample(x[i], mean, log_sd)
 
-            x = current_block.reverse(x)
+            output = current_block.reverse(output)
+            output = squeeze(output, reverse=True)
+        return output
 
-        # unsqueeze before returning, equivalent to reversing the first squeeze before the loops in forward
-        x = squeeze(x, reverse=True)
-        return x
+def split_reverse(x, eps, zeroconv):
+    mean, log_sd = zeroconv(x).chunk(2, 1)
+    z = gaussian_sample(eps, mean, log_sd)
+    return torch.cat([x, z], dim=1)
 
 
 class Block(nn.Module):
@@ -177,22 +169,6 @@ def split_prior(x_a, zeroconv):
 
     gd = gaussian_diag(mean, logs)
     return gd
-
-
-def split_reverse(x, eps, eps_std, zeroconv):
-    x_a = squeeze(x, reverse=True)
-    gd = split_prior(x_a, zeroconv)
-
-    if eps is not None:
-        x_b = gd.sample2(eps)
-    elif eps_std is not None:
-        # eps_std will probably broadcast to perform element-wise multiplication
-        x_b = gd.sample2(gd.eps * torch.reshape(eps_std, [-1, 1, 1, 1]))
-    else:
-        x_b = gd.sample
-    x = torch.cat((x_a, x_b), dim=1)
-
-    return x
 
 
 def gaussian_diag(mean, logsd):

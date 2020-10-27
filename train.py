@@ -190,7 +190,6 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs, levels,
         grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
         torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
 
-
 @torch.no_grad()
 def generate(model, n_samples, device, shape, levels):
     """
@@ -201,16 +200,27 @@ def generate(model, n_samples, device, shape, levels):
         device: the device we run the model on
         n_channels: the amount of channels for the output (usually 3, but on MNIST it's 1)
     """
-    # z = torch.randn((n_samples, n_channels, 32, 32),
-    #                 dtype=torch.float32, device=device)
     channels, height, width = shape[1], shape[2], shape[3]
-    # initial channels * 4 * 2^(levels-1) with L=4 and initial_channels=3 for cifar
-    channels = int(channels * 4 * 2 ** (levels - 1))
-    height = int(height // (2**levels))
-    width = int(width // (2**levels))
-    z = torch.randn((n_samples, channels, height, width), dtype=torch.float32, device=device)
-    x = model.reverse(z)
+    x_shapes = create_x_shapes(channels, height, width, levels)
+    temperature = 0.7
+    x_sample = []
+    for ch, h, w in x_shapes:
+        x_random = torch.randn(n_samples, ch, h, w) * temperature
+        x_sample.append(x_random.to(device))
+    x = model.reverse(x_sample)
+    x /= 0.6  # attempt to make it brighter
     return x
+
+def create_x_shapes(channels, height, width, levels):
+    x_shapes = []
+    for i in range(levels - 1):
+        channels *= 2
+        height //= 2
+        width //= 2
+        x_shapes.append((channels, height, width))
+
+    x_shapes.append((channels * 4, height // 2, width // 2))
+    return x_shapes
 
 
 class DatasetEnum(Enum):
