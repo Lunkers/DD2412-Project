@@ -44,7 +44,8 @@ def main(args):
     os.makedirs('final_generation_img', exist_ok=True)
     grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
     # torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
-    torchvision.utils.save_image(grid, f"final_generation_img/epoch_{100}_brighter.png")
+    torchvision.utils.save_image(grid, f"final_generation_img/epoch_{100}_brighter.png", normalize=True, nrow=10,
+                                 range=(-0.5, 0.5))
 
 @torch.no_grad()
 def generate(model, n_samples, device, shape, levels):
@@ -64,7 +65,7 @@ def generate(model, n_samples, device, shape, levels):
         x_random = torch.randn(n_samples, ch, h, w) * temperature
         x_sample.append(x_random.to(device))
     x = model.reverse(x_sample)
-    x /= 0.6  # attempt to make it brighter
+    #x /= 0.6  # attempt to make it brighter
     return x
 
 def create_x_shapes(channels, height, width, levels):

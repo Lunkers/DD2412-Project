@@ -183,12 +183,13 @@ def test(model, testloader, device, loss_function, epoch, generate_imgs, levels,
     print(f"test epoch complete, result: {loss_meter.avg} bits/dim")
     test_losses.append({"epoch": epoch, "avg_loss": loss_meter.avg})
     x = next(iter(testloader))[0]  # extract first batch of data in order to get channel dimens
-    # generate samples after each test (?)
+    # generate samples after each test
     if(generate_imgs):
         sample_images = generate(model, num_samples, device, shape=x.shape, levels=levels)
         os.makedirs('generated_imgs', exist_ok=True)
         grid = torchvision.utils.make_grid(sample_images, nrow=int(num_samples ** 0.5))
-        torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png")
+        torchvision.utils.save_image(grid, f"generated_imgs/epoch_{epoch}.png", normalize=True, nrow=10,
+                                     range=(-0.5, 0.5))
 
 @torch.no_grad()
 def generate(model, n_samples, device, shape, levels):
@@ -208,7 +209,7 @@ def generate(model, n_samples, device, shape, levels):
         x_random = torch.randn(n_samples, ch, h, w) * temperature
         x_sample.append(x_random.to(device))
     x = model.reverse(x_sample)
-    x /= 0.6  # attempt to make it brighter
+    x /= 0.6  # attempt to make it brighter, seen as rescaling it to reverse the effect of using temperature
     return x
 
 def create_x_shapes(channels, height, width, levels):
